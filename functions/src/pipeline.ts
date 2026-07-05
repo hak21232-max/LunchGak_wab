@@ -1,4 +1,5 @@
 import { estimateWalkMin, parseRadiusMeters, searchNearbyRestaurants } from './kakao'
+import { filterCandidatesByQuiz } from './filters'
 import { enrichWithBlogData } from './naver'
 import { applyExcellentRestaurantBonus } from './publicdata'
 import { fetchWeather, buildWeatherComment } from './weather'
@@ -112,23 +113,29 @@ export async function runRecommendationPipeline(
     throw new Error('주변에 점심·저녁 식사 가능한 음식점이 없어요.')
   }
 
-  // 3. 네이버 블로그 언급 수 가점
+  // 3. 5문항 기본 필터 (자리·기분·음식·시간·예산)
+  const filteredPlaces = filterCandidatesByQuiz(places, req)
+  if (filteredPlaces.length === 0) {
+    throw new Error('조건에 맞는 식당을 찾지 못했어요. 답변을 조금 바꿔볼까요?')
+  }
+
+  // 4. 네이버 블로그 언급 수 가점
   const { blogScores } = await enrichWithBlogData(
-    places,
+    filteredPlaces,
     secrets.naverClientId,
     secrets.naverClientSecret,
   )
 
-  // 4. 모범음식점 가점 적용
+  // 5. 모범음식점 가점 적용
   const placesWithBonus = await applyExcellentRestaurantBonus(
-    places,
+    filteredPlaces,
     secrets.dataGoKrServiceKey,
   )
 
-  // 5. 스코어링
+  // 6. 스코어링
   const scored = scorePlaces(placesWithBonus, blogScores)
 
-  // 6. Gemini 추천
+  // 7. Gemini 추천
   let geminiOutput
   try {
     geminiOutput = await generateRecommendations(req, scored, weather, secrets.geminiApiKey)

@@ -190,13 +190,18 @@ export async function searchNearbyRestaurants(
   return results
 }
 
-export function foodMatchScore(categoryName: string, foodPrefs: string[]): number {
+export function foodMatchScore(
+  categoryName: string,
+  foodPrefs: string[],
+  placeName = '',
+): number {
   if (foodPrefs.some((f) => f.includes('자유'))) return 12
 
+  const text = `${categoryName} ${placeName}`
   let score = 0
   for (const pref of foodPrefs) {
     const keywords = FOOD_KEYWORDS[pref] ?? []
-    if (keywords.some((kw) => categoryName.includes(kw))) {
+    if (keywords.some((kw) => text.includes(kw))) {
       score += 12
     }
   }

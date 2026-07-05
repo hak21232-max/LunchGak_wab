@@ -40,7 +40,7 @@ function buildPrompt(
 - 예산: ${req.budget}
 - ${weatherLine}
 
-## 후보 식당 (score 순)
+## 후보 식당 (5문항 필터 통과 + score 순)
 ${candidateLines}
 
 위 후보 중 정확히 3곳을 골라 JSON만 출력하세요.
