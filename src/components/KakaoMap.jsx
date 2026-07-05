@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
-import { loadKakaoMap } from '../utils/loadKakaoMap'
+import { getCurrentOrigin, loadKakaoMap } from '../utils/loadKakaoMap'
+import { buildKakaoPlaceUrl } from '../utils/normalizePick'
 
 const RANK_COLORS = {
   1: '#C9A84C',
@@ -11,11 +12,14 @@ const USER_COLOR = '#3B82F6'
 
 const MAP_MESSAGES = {
   loading: '지도 불러오는 중...',
-  no_key: '카카오맵 API 키가 없어요 (.env의 VITE_KAKAO_JS_KEY 확인)',
-  error: '카카오맵 SDK 로드 실패 (키·도메인 설정 확인)',
+  no_key:
+    '카카오 JS 키 없음 — Cloudflare Pages 환경변수 VITE_KAKAO_JS_KEY 확인 후 재배포',
+  error: '카카오맵 SDK 로드 실패',
   timeout: '카카오맵 로드 시간 초과 — 네트워크·광고차단 확인',
-  script_error: '카카오맵 SDK 스크립트 차단됨 — 광고차단·브라우저 확장 확인',
-  init_error: '카카오맵 초기화 실패 — JS키·도메인(localhost) 등록 확인',
+  script_error: '카카오맵 SDK 스크립트 차단됨 — 광고차단·확장 프로그램 확인',
+  init_error: '카카오맵 초기화 실패',
+  domain_error: (origin) =>
+    `도메인 미등록 — 카카오 개발자 콘솔 Web 플랫폼에 ${origin} 추가`,
 }
 
 function createCircleMarkerImage(kakao, color, size = 28) {
@@ -59,7 +63,10 @@ export default function KakaoMap({ picks, userLat, userLng, onStatusChange }) {
         if (cancelled || !mapRef.current) return
 
         try {
-          overlaysRef.current.forEach(({ marker, infowindow }) => {
+          overlaysRef.current.forEach(({ marker, infowindow, onMarkerClick }) => {
+            if (onMarkerClick) {
+              kakao.maps.event.removeListener(marker, 'click', onMarkerClick)
+            }
             marker.setMap(null)
             infowindow?.close()
           })
@@ -103,12 +110,14 @@ export default function KakaoMap({ picks, userLat, userLng, onStatusChange }) {
               content: `<div style="padding:8px 10px;font-size:12px;white-space:nowrap;">${pick.rank}위 ${pick.name} · 도보 ${pick.walk_min}분</div>`,
             })
 
-            kakao.maps.event.addListener(marker, 'click', () => {
+            const onMarkerClick = () => {
               overlaysRef.current.forEach(({ infowindow: iw }) => iw?.close())
               infowindow.open(map, marker)
-            })
+            }
 
-            overlaysRef.current.push({ marker, infowindow })
+            kakao.maps.event.addListener(marker, 'click', onMarkerClick)
+
+            overlaysRef.current.push({ marker, infowindow, onMarkerClick })
           })
 
           map.setBounds(bounds)
@@ -123,13 +132,17 @@ export default function KakaoMap({ picks, userLat, userLng, onStatusChange }) {
           NO_KEY: 'no_key',
           TIMEOUT: 'timeout',
           SCRIPT_ERROR: 'script_error',
+          DOMAIN_ERROR: 'domain_error',
         }
         updateStatus(statusMap[err.message] ?? 'error')
       })
 
     return () => {
       cancelled = true
-      overlaysRef.current.forEach(({ marker, infowindow }) => {
+      overlaysRef.current.forEach(({ marker, infowindow, onMarkerClick }) => {
+        if (onMarkerClick && window.kakao?.maps?.event) {
+          window.kakao.maps.event.removeListener(marker, 'click', onMarkerClick)
+        }
         marker.setMap(null)
         infowindow?.close()
       })
@@ -138,9 +151,24 @@ export default function KakaoMap({ picks, userLat, userLng, onStatusChange }) {
   }, [picks, userLat, userLng])
 
   if (mapStatus !== 'ready' && mapStatus !== 'loading') {
+    const message =
+      mapStatus === 'domain_error'
+        ? MAP_MESSAGES.domain_error(getCurrentOrigin())
+        : MAP_MESSAGES[mapStatus]
+    const fallbackUrl = picks?.[0] ? buildKakaoPlaceUrl(picks[0]) : ''
+
     return (
       <div className="mb-4 flex h-56 w-full flex-col items-center justify-center gap-2 rounded-2xl bg-gray-100 px-4 text-center text-sm text-gray-500">
-        <span>🗺️ {MAP_MESSAGES[mapStatus]}</span>
+        <span>🗺️ {message}</span>
+        {fallbackUrl && (
+          <button
+            type="button"
+            onClick={() => window.open(fallbackUrl, '_blank', 'noopener,noreferrer')}
+            className="text-xs text-primary underline"
+          >
+            카카오맵에서 1위 맛집 보기
+          </button>
+        )}
       </div>
     )
   }

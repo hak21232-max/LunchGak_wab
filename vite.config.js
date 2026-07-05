@@ -7,7 +7,7 @@ const PLACEHOLDER_KEYS = new Set(['', 'YOUR_KAKAO_JS_KEY', 'KAKAO_JS_KEY_HERE'])
 function injectKakaoMapScript(html, kakaoKey) {
   if (!kakaoKey || PLACEHOLDER_KEYS.has(kakaoKey)) return html
 
-  const script = `<script type="text/javascript" src="https://dapi.kakao.com/v2/maps/sdk.js?appkey=${kakaoKey}&libraries=services"><\/script>`
+  const script = `<script type="text/javascript" src="https://dapi.kakao.com/v2/maps/sdk.js?appkey=${kakaoKey}&libraries=services&autoload=false"><\/script>`
   return html.replace(
     '<title>lunchgak</title>',
     `<title>lunchgak</title>\n    ${script}`,

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
+import { normalizeRecommendResponse } from '../utils/normalizePick'
 
 const MOOD_MAP = {
   스트레스: '스트레스가 심한 상태',
@@ -36,40 +37,46 @@ const MOCK_DATA = {
   picks: [
     {
       rank: 1,
-      place_id: 'mock001',
+      place_id: '56701241',
       name: '동탄 돼지국밥',
       category: '한식 > 국밥',
       reason: '혼밥하기 좋은 카운터석에 8천원 돼지국밥, 10분이면 나와요.',
       tip: '수육 추가는 3천원 — 오늘같은 날 강추예요.',
       walk_min: 3,
       mood_match_score: 91,
-      place_url: 'https://place.map.kakao.com/mock001',
+      place_url: 'http://place.map.kakao.com/56701241',
+      blog_count: 1240,
+      is_exemplary: true,
       lat: 37.2636,
       lng: 127.0632,
     },
     {
       rank: 2,
-      place_id: 'mock002',
+      place_id: '1227289113',
       name: '고기야 점심특선',
       category: '한식 > 고기',
       reason: '평일 점심 삼겹살 특선 9,900원. 1인 세트 있어서 혼밥도 부담 없어요.',
       tip: '12시 넘으면 웨이팅 있으니 11:50에 가세요.',
       walk_min: 5,
       mood_match_score: 83,
-      place_url: 'https://place.map.kakao.com/mock002',
+      place_url: 'http://place.map.kakao.com/1227289113',
+      blog_count: 856,
+      is_exemplary: false,
       lat: 37.2645,
       lng: 127.0641,
     },
     {
       rank: 3,
-      place_id: 'mock003',
+      place_id: '992975482',
       name: '김씨 순대국',
       category: '한식 > 국밥',
       reason: '8,000원 순대국, 30분 안에 여유있게 먹고 돌아올 수 있어요.',
       tip: null,
       walk_min: 4,
       mood_match_score: 74,
-      place_url: 'https://place.map.kakao.com/mock003',
+      place_url: 'http://place.map.kakao.com/992975482',
+      blog_count: 312,
+      is_exemplary: false,
       lat: 37.2628,
       lng: 127.0625,
     },
@@ -101,6 +108,21 @@ function isReady(answers, lat, lng) {
   )
 }
 
+function resolveFunctionsUrl(raw) {
+  const url = raw?.trim()
+  if (!url || url.includes('YOUR_PROJECT')) return null
+  if (url.includes('console.firebase.google.com')) {
+    throw new Error(
+      'Functions URL이 잘못됐어요. Firebase 콘솔 주소가 아니라 Cloud Functions URL을 넣어주세요.',
+    )
+  }
+  if (!url.startsWith('https://')) {
+    throw new Error('Functions URL은 https:// 로 시작해야 해요.')
+  }
+  const base = url.replace(/\/$/, '')
+  return base.endsWith('/getRecommendation') ? base : `${base}/getRecommendation`
+}
+
 export default function useRecommend(answers, lat, lng) {
   const [data, setData] = useState(null)
   const [loading, setLoading] = useState(false)
@@ -121,16 +143,14 @@ export default function useRecommend(answers, lat, lng) {
       setError(null)
 
       try {
-        const functionsUrl = import.meta.env.VITE_FIREBASE_FUNCTIONS_URL?.trim()
-        const useMock =
-          !functionsUrl || functionsUrl.includes('YOUR_PROJECT')
+        const endpoint = resolveFunctionsUrl(import.meta.env.VITE_FIREBASE_FUNCTIONS_URL)
 
-        if (useMock) {
-          if (!cancelled) setData(MOCK_DATA)
+        if (!endpoint) {
+          if (!cancelled) setData(normalizeRecommendResponse(MOCK_DATA))
           return
         }
 
-        const response = await fetch(`${functionsUrl}/getRecommendation`, {
+        const response = await fetch(endpoint, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(buildBody(answers, lat, lng)),
@@ -141,7 +161,7 @@ export default function useRecommend(answers, lat, lng) {
         }
 
         const json = await response.json()
-        if (!cancelled) setData(json)
+        if (!cancelled) setData(normalizeRecommendResponse(json))
       } catch (err) {
         if (!cancelled) {
           setError(err.message ?? '추천을 불러오지 못했어요.')

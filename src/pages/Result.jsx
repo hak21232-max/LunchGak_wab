@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useQuiz } from '../context/QuizContext'
 import KakaoMap from '../components/KakaoMap'
+import RestaurantCard from '../components/RestaurantCard'
 import useLocation from '../hooks/useLocation'
 import useRecommend from '../hooks/useRecommend'
 
@@ -65,7 +66,9 @@ export default function Result() {
           ? 'SDK 로드 시간 초과 — dev 서버 재시작·광고차단 확인'
           : mapStatus === 'script_error'
             ? 'SDK 스크립트 차단 — 광고차단·확장 프로그램 확인'
-            : mapStatus === 'init_error'
+          : mapStatus === 'domain_error'
+          ? `카카오 콘솔 Web 도메인에 ${window.location.origin} 등록 필요`
+          : mapStatus === 'init_error'
               ? '지도 초기화 실패 — JS키 타입·도메인 등록 확인'
               : mapStatus === 'error'
                 ? 'SDK 로드 실패 — 카카오 개발자 콘솔에서 JS키·도메인 확인'
@@ -107,19 +110,7 @@ export default function Result() {
 
       <div className="mt-6 flex flex-col gap-4">
         {data.picks.map((pick) => (
-          <div
-            key={pick.place_id}
-            className="rounded-2xl border border-gray-200 p-4"
-          >
-            <p className="text-xs text-accent">{pick.rank}위</p>
-            <p className="font-semibold text-gray-800">{pick.name}</p>
-            <p className="text-xs text-gray-400">{pick.category}</p>
-            <p className="mt-2 text-sm text-gray-600">{pick.reason}</p>
-            {pick.tip && (
-              <p className="mt-1 text-xs text-gray-400">💡 {pick.tip}</p>
-            )}
-            <p className="mt-2 text-xs text-gray-500">도보 {pick.walk_min}분</p>
-          </div>
+          <RestaurantCard key={pick.place_id} pick={pick} />
         ))}
       </div>
 
