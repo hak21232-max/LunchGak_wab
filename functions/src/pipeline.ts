@@ -1,17 +1,10 @@
-import {
-  budgetPenalty,
-  estimateWalkMin,
-  foodMatchScore,
-  mealTypeBonus,
-  parseRadiusMeters,
-  searchNearbyRestaurants,
-  situationBonus,
-  weatherMatchScore,
-} from './kakao'
+import { estimateWalkMin, parseRadiusMeters, searchNearbyRestaurants } from './kakao'
 import { enrichWithBlogData } from './naver'
+import { applyExcellentRestaurantBonus } from './publicdata'
 import { fetchWeather, buildWeatherComment } from './weather'
 import { fallbackGeminiOutput, generateRecommendations } from './gemini'
 import type {
+  KakaoPlace,
   PickResult,
   RecommendRequest,
   RecommendResponse,
@@ -24,50 +17,37 @@ interface PipelineSecrets {
   naverClientSecret: string
   openWeatherApiKey: string
   geminiApiKey: string
+  dataGoKrServiceKey: string
 }
 
+type ScoringCandidate = KakaoPlace & { excellentBonus?: boolean }
+
 function scorePlaces(
-  places: Awaited<ReturnType<typeof searchNearbyRestaurants>>,
-  req: RecommendRequest,
+  places: ScoringCandidate[],
   blogScores: Map<string, number>,
-  exemplaryFlags: Map<string, boolean>,
-  weatherTemp: number,
-  radius: number,
 ): ScoredPlace[] {
   return places
     .map((place) => {
-      const distanceM = Number(place.distance)
+      const distanceM = Math.max(Number(place.distance), 1)
       const walkMin = estimateWalkMin(distanceM)
       const blogMentions = blogScores.get(place.place_name) ?? 0
-      const isExemplary = exemplaryFlags.get(place.place_name) ?? false
+      const excellentBonus = place.excellentBonus ?? false
 
-      const distanceScore = Math.max(0, 40 - (distanceM / radius) * 40)
-      const blogScore = Math.min(blogMentions / 50, 1) * 20
-      const foodScore = foodMatchScore(place.category_name, req.food)
-      const weatherScore = weatherMatchScore(place.category_name, weatherTemp)
-      const sitBonus = situationBonus(place.category_name, req.situation)
-      const budgetAdj = budgetPenalty(req.budget, place.category_name)
-      const mealBonus = mealTypeBonus(place.category_name)
-
-      const score =
-        distanceScore +
-        blogScore +
-        foodScore +
-        weatherScore +
-        sitBonus +
-        budgetAdj +
-        mealBonus
+      const distanceScore = (1 / distanceM) * 10000
+      const blogScore = Math.log(blogMentions + 1) * 5
+      const excellentScore = excellentBonus ? 15 : 0
+      const score = distanceScore + blogScore + excellentScore
 
       return {
         ...place,
         score,
         walkMin,
         blogMentions,
-        isExemplary,
-        foodMatchScore: foodScore,
+        isExemplary: excellentBonus,
+        excellentBonus,
         distanceScore,
         blogScore,
-        weatherScore,
+        excellentScore,
       }
     })
     .sort((a, b) => b.score - a.score)
@@ -114,32 +94,41 @@ export async function runRecommendationPipeline(
 ): Promise<RecommendResponse> {
   const radius = parseRadiusMeters(req.time)
 
-  const [places, weather] = await Promise.all([
-    searchNearbyRestaurants(
-      req.lat,
-      req.lng,
-      radius,
-      secrets.kakaoRestApiKey,
-      req.situation,
-      req.time,
-    ),
-    fetchWeather(req.lat, req.lng, secrets.openWeatherApiKey),
-  ])
+  // 1. 날씨 조회
+  const weather = await fetchWeather(req.lat, req.lng, secrets.openWeatherApiKey)
+  const weatherComment = buildWeatherComment(weather)
+
+  // 2. 카카오 Local API 후보 조회 (식사 가능 업소 필터 포함)
+  const places = await searchNearbyRestaurants(
+    req.lat,
+    req.lng,
+    radius,
+    secrets.kakaoRestApiKey,
+    req.situation,
+    req.time,
+  )
 
   if (places.length === 0) {
     throw new Error('주변에 점심·저녁 식사 가능한 음식점이 없어요.')
   }
 
-  const { blogScores, exemplaryFlags } = await enrichWithBlogData(
+  // 3. 네이버 블로그 언급 수 가점
+  const { blogScores } = await enrichWithBlogData(
     places,
     secrets.naverClientId,
     secrets.naverClientSecret,
   )
 
-  const weatherTemp = weather?.temp ?? 20
-  const scored = scorePlaces(places, req, blogScores, exemplaryFlags, weatherTemp, radius)
-  const weatherComment = buildWeatherComment(weather)
+  // 4. 모범음식점 가점 적용
+  const placesWithBonus = await applyExcellentRestaurantBonus(
+    places,
+    secrets.dataGoKrServiceKey,
+  )
 
+  // 5. 스코어링
+  const scored = scorePlaces(placesWithBonus, blogScores)
+
+  // 6. Gemini 추천
   let geminiOutput
   try {
     geminiOutput = await generateRecommendations(req, scored, weather, secrets.geminiApiKey)

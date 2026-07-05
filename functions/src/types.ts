@@ -23,10 +23,10 @@ export interface ScoredPlace extends KakaoPlace {
   walkMin: number
   blogMentions: number
   isExemplary: boolean
-  foodMatchScore: number
+  excellentBonus: boolean
   distanceScore: number
   blogScore: number
-  weatherScore: number
+  excellentScore: number
 }
 
 export interface WeatherInfo {

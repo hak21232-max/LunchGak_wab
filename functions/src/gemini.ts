@@ -13,10 +13,11 @@ function buildPrompt(
 ): string {
   const candidateLines = candidates
     .slice(0, 8)
-    .map(
-      (p, i) =>
-        `${i + 1}. id=${p.id} | ${p.place_name} | ${p.category_name} | 도보 ${p.walkMin}분 | score=${Math.round(p.score)} | 블로그 ${p.blogMentions}건`,
-    )
+    .map((p, i) => {
+      const distanceM = Math.round(Number(p.distance))
+      const excellentLabel = p.excellentBonus ? 'O' : 'X'
+      return `${i + 1}. id=${p.id} | ${p.place_name} | ${p.category_name} | 거리: ${distanceM}m | 도보 ${p.walkMin}분 | 네이버 블로그: ${p.blogMentions}건 | 모범음식점: ${excellentLabel} | score=${Math.round(p.score)}`
+    })
     .join('\n')
 
   const weatherLine = weather

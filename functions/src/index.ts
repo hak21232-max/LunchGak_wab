@@ -6,19 +6,14 @@ import { runRecommendationPipeline, validateRecommendRequest } from './pipeline'
 
 initializeApp()
 
-const kakaoRestApiKey = defineSecret('KAKAO_REST_API_KEY')
-const naverClientId = defineSecret('NAVER_CLIENT_ID')
-const naverClientSecret = defineSecret('NAVER_CLIENT_SECRET')
-const openWeatherApiKey = defineSecret('OPENWEATHER_API_KEY')
-const geminiApiKey = defineSecret('GEMINI_API_KEY')
+const kakaoKey = defineSecret('KAKAO_REST_API_KEY')
+const naverCid = defineSecret('NAVER_CLIENT_ID')
+const naverSecret = defineSecret('NAVER_CLIENT_SECRET')
+const owKey = defineSecret('OPENWEATHER_API_KEY')
+const geminiKey = defineSecret('GEMINI_API_KEY')
+const dataGoKrKey = defineSecret('DATA_GO_KR_SERVICE_KEY')
 
-const secrets = [
-  kakaoRestApiKey,
-  naverClientId,
-  naverClientSecret,
-  openWeatherApiKey,
-  geminiApiKey,
-]
+const secrets = [kakaoKey, naverCid, naverSecret, owKey, geminiKey, dataGoKrKey]
 
 export const getRecommendation = onRequest(
   {
@@ -39,11 +34,12 @@ export const getRecommendation = onRequest(
     try {
       const payload = validateRecommendRequest(req.body)
       const result = await runRecommendationPipeline(payload, {
-        kakaoRestApiKey: kakaoRestApiKey.value(),
-        naverClientId: naverClientId.value(),
-        naverClientSecret: naverClientSecret.value(),
-        openWeatherApiKey: openWeatherApiKey.value(),
-        geminiApiKey: geminiApiKey.value(),
+        kakaoRestApiKey: kakaoKey.value(),
+        naverClientId: naverCid.value(),
+        naverClientSecret: naverSecret.value(),
+        openWeatherApiKey: owKey.value(),
+        geminiApiKey: geminiKey.value(),
+        dataGoKrServiceKey: dataGoKrKey.value(),
       })
 
       res.status(200).json(result)
