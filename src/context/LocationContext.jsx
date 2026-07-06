@@ -1,6 +1,7 @@
 import { createContext, useCallback, useContext, useState } from 'react'
 import {
   clearSavedOffice,
+  loadLocationMode,
   loadSavedOffice,
   saveOfficeLocation,
   setLocationMode,
@@ -17,15 +18,30 @@ function getFailReason(code) {
 
 const LocationContext = createContext(null)
 
+function getInitialOfficeState() {
+  const savedOffice = loadSavedOffice()
+  const mode = loadLocationMode()
+  if (mode === 'office' && savedOffice) {
+    return {
+      savedOffice,
+      lat: savedOffice.lat,
+      lng: savedOffice.lng,
+      locationSource: 'office',
+    }
+  }
+  return { savedOffice, lat: null, lng: null, locationSource: null }
+}
+
 export function LocationProvider({ children }) {
-  const [lat, setLat] = useState(null)
-  const [lng, setLng] = useState(null)
+  const initialOffice = getInitialOfficeState()
+  const [lat, setLat] = useState(initialOffice.lat)
+  const [lng, setLng] = useState(initialOffice.lng)
   const [loading, setLoading] = useState(false)
   const [isFallback, setIsFallback] = useState(false)
   const [failReason, setFailReason] = useState(null)
   const [accuracy, setAccuracy] = useState(null)
-  const [locationSource, setLocationSource] = useState(null)
-  const [savedOffice, setSavedOfficeState] = useState(() => loadSavedOffice())
+  const [locationSource, setLocationSource] = useState(initialOffice.locationSource)
+  const [savedOffice, setSavedOfficeState] = useState(initialOffice.savedOffice)
 
   const applyOffice = useCallback((office) => {
     setLat(office.lat)

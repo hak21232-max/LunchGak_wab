@@ -16,6 +16,7 @@ export default function Result() {
   const { lat, lng, loading: locLoading } = useLocation()
   const { data, loading, error, retry } = useRecommend(answers, lat, lng)
   const [shareMsg, setShareMsg] = useState(null)
+  const [sharing, setSharing] = useState(false)
 
   usePageMeta({
     title: '추천 결과',
@@ -25,31 +26,42 @@ export default function Result() {
   })
 
   async function handleShare() {
-    if (!data) return
-    const result = await shareRecommendResult(data)
-    if (result.method === 'share') {
-      setShareMsg('공유했어요!')
-    } else if (result.method === 'clipboard') {
-      setShareMsg('클립보드에 복사했어요. 팀 채팅에 붙여넣기 하세요.')
-    } else if (result.method !== 'cancel') {
-      setShareMsg('공유에 실패했어요. 다시 시도해 주세요.')
+    if (!data || sharing) return
+    setSharing(true)
+    try {
+      const result = await shareRecommendResult(data, { lat, lng })
+      if (result.method === 'share') {
+        setShareMsg('공유 링크를 보냈어요!')
+      } else if (result.method === 'clipboard') {
+        setShareMsg('공유 링크를 복사했어요. 팀 채팅에 붙여넣기 하세요.')
+      } else if (result.method !== 'cancel') {
+        setShareMsg('공유에 실패했어요. 다시 시도해 주세요.')
+      }
+      if (result.ok) setTimeout(() => setShareMsg(null), 3000)
+    } catch (err) {
+      setShareMsg(err.message ?? '공유 링크 생성에 실패했어요.')
+      setTimeout(() => setShareMsg(null), 4000)
+    } finally {
+      setSharing(false)
     }
-    if (result.ok) setTimeout(() => setShareMsg(null), 3000)
   }
 
   async function handleKakaoShare() {
-    if (!data) return
+    if (!data || sharing) return
+    setSharing(true)
     try {
-      await shareToKakaoTalk(data)
+      await shareToKakaoTalk(data, { lat, lng })
       setShareMsg('카카오톡 공유 창을 열었어요!')
       setTimeout(() => setShareMsg(null), 3000)
     } catch (err) {
       if (err?.message === 'NO_KEY') {
         setShareMsg('카카오 공유 설정이 필요해요. (VITE_KAKAO_JS_KEY)')
       } else {
-        setShareMsg('카카오톡 공유에 실패했어요. 다시 시도해 주세요.')
+        setShareMsg(err.message ?? '카카오톡 공유에 실패했어요. 다시 시도해 주세요.')
       }
       setTimeout(() => setShareMsg(null), 4000)
+    } finally {
+      setSharing(false)
     }
   }
 
@@ -124,14 +136,16 @@ export default function Result() {
         <button
           type="button"
           onClick={handleShare}
-          className="min-h-[40px] flex-1 rounded-xl bg-accent px-4 py-2 text-sm font-medium text-white"
+          disabled={sharing}
+          className="min-h-[40px] flex-1 rounded-xl bg-accent px-4 py-2 text-sm font-medium text-white disabled:opacity-60"
         >
-          📤 공유하기
+          {sharing ? '링크 만드는 중…' : '📤 공유하기'}
         </button>
         <button
           type="button"
           onClick={handleKakaoShare}
-          className="min-h-[40px] flex-1 rounded-xl bg-[#FEE500] px-4 py-2 text-sm font-medium text-[#191919]"
+          disabled={sharing}
+          className="min-h-[40px] flex-1 rounded-xl bg-[#FEE500] px-4 py-2 text-sm font-medium text-[#191919] disabled:opacity-60"
         >
           💬 카카오톡
         </button>

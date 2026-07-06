@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
+import { resolveFunctionUrl } from '../utils/functionsUrl'
 import { normalizeRecommendResponse } from '../utils/normalizePick'
 
 const MOOD_MAP = {
@@ -110,18 +111,8 @@ function isReady(answers, lat, lng) {
 }
 
 function resolveFunctionsUrl(raw) {
-  const url = raw?.trim()
-  if (!url || url.includes('YOUR_PROJECT')) return null
-  if (url.includes('console.firebase.google.com')) {
-    throw new Error(
-      'Functions URL이 잘못됐어요. Firebase 콘솔 주소가 아니라 Cloud Functions URL을 넣어주세요.',
-    )
-  }
-  if (!url.startsWith('https://')) {
-    throw new Error('Functions URL은 https:// 로 시작해야 해요.')
-  }
-  const base = url.replace(/\/$/, '')
-  return base.endsWith('/getRecommendation') ? base : `${base}/getRecommendation`
+  if (!raw?.trim() || raw.includes('YOUR_PROJECT')) return null
+  return resolveFunctionUrl('getRecommendation')
 }
 
 export default function useRecommend(answers, lat, lng) {

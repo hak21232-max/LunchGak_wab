@@ -19,7 +19,7 @@ export function applyCors(req: Request, res: Response): boolean {
   if (origin && isAllowedOrigin(origin)) {
     res.set('Access-Control-Allow-Origin', origin)
   }
-  res.set('Access-Control-Allow-Methods', 'POST, OPTIONS')
+  res.set('Access-Control-Allow-Methods', 'GET, POST, OPTIONS')
   res.set('Access-Control-Allow-Headers', 'Content-Type')
 
   if (req.method === 'OPTIONS') {

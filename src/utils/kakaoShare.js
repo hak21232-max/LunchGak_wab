@@ -1,3 +1,4 @@
+import { createShareLink } from './shareResult'
 import { getKakaoMapKey } from './loadKakaoMap'
 
 const KAKAO_SDK_URL = 'https://t1.kakaocdn.net/kakao_js_sdk/2.7.4/kakao.min.js'
@@ -12,10 +13,8 @@ function truncate(text, max) {
   return `${text.slice(0, max - 1)}…`
 }
 
-function getShareUrl() {
-  const origin =
-    typeof window !== 'undefined' ? window.location.origin : 'https://lunchgak-wab.pages.dev'
-  return `${origin}/location`
+function getOrigin() {
+  return typeof window !== 'undefined' ? window.location.origin : 'https://lunchgak-wab.pages.dev'
 }
 
 function buildKakaoDescription(data) {
@@ -62,9 +61,9 @@ export function loadKakaoSdk() {
   return sdkPromise
 }
 
-export async function shareToKakaoTalk(data) {
+export async function shareToKakaoTalk(data, location) {
   const Kakao = await loadKakaoSdk()
-  const shareUrl = getShareUrl()
+  const shareUrl = await createShareLink(data, location)
   const picks = (data.picks ?? []).slice(0, 3)
 
   await Kakao.Share.sendDefault({
@@ -89,10 +88,17 @@ export async function shareToKakaoTalk(data) {
     },
     buttons: [
       {
-        title: '나도 추천 받기',
+        title: '추천 결과 보기',
         link: {
           mobileWebUrl: shareUrl,
           webUrl: shareUrl,
+        },
+      },
+      {
+        title: '나도 추천 받기',
+        link: {
+          mobileWebUrl: `${getOrigin()}/location`,
+          webUrl: `${getOrigin()}/location`,
         },
       },
     ],

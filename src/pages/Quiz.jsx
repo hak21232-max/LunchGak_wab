@@ -74,14 +74,18 @@ export default function Quiz() {
   const [step, setStep] = useState(0)
   const navigate = useNavigate()
   const { answers, setAnswer, resetAnswers } = useQuiz()
-  const { lat, lng, loading: locLoading } = useLocation()
+  const { lat, lng, loading: locLoading, savedOffice, setOfficeFromMap } = useLocation()
   usePageMeta({ title: '맛집 추천 문답', description: '5가지 질문에 답하고 맞춤 점심 맛집을 추천받으세요.', path: '/quiz' })
 
   useEffect(() => {
-    if (!locLoading && (lat == null || lng == null)) {
-      navigate('/location', { replace: true })
+    if (locLoading) return
+    if (lat != null && lng != null) return
+    if (savedOffice?.lat != null && savedOffice?.lng != null) {
+      setOfficeFromMap(savedOffice.lat, savedOffice.lng)
+      return
     }
-  }, [lat, lng, locLoading, navigate])
+    navigate('/location', { replace: true })
+  }, [lat, lng, locLoading, savedOffice, setOfficeFromMap, navigate])
 
   useEffect(() => {
     resetAnswers()

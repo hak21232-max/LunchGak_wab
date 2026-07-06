@@ -12,7 +12,7 @@ const FOOTER_LINKS = [
 export default function SiteLayout({ children }) {
   const { pathname } = useLocation()
   const isAppFlow = pathname === '/quiz' || pathname === '/result'
-  const isWide = /^\/(about|privacy|terms|contact|guide|blog|location)/.test(pathname)
+  const isWide = /^\/(about|privacy|terms|contact|guide|blog|location|share)/.test(pathname)
 
   return (
     <div className="flex min-h-screen flex-col bg-bg">

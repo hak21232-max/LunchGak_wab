@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { flushSync } from 'react-dom'
 import { useNavigate } from 'react-router-dom'
 import OfficeMapPicker from '../components/OfficeMapPicker'
 import useLocation from '../hooks/useLocation'
@@ -36,14 +37,30 @@ export default function LocationSelect() {
 
   useEffect(() => {
     if (mode === 'gps') {
-      useGpsLocation()
-      return
+      return useGpsLocation()
     }
-    if (mode === 'office' && savedOffice) {
-      setOfficeDraft({ lat: savedOffice.lat, lng: savedOffice.lng })
-      setOfficeFromMap(savedOffice.lat, savedOffice.lng)
+
+    const officeLat = officeDraft.lat ?? savedOffice?.lat
+    const officeLng = officeDraft.lng ?? savedOffice?.lng
+    if (officeLat != null && officeLng != null) {
+      if (lat == null || lng == null || locationSource !== 'office') {
+        setOfficeFromMap(officeLat, officeLng)
+      }
+      if (officeDraft.lat == null || officeDraft.lng == null) {
+        setOfficeDraft({ lat: officeLat, lng: officeLng })
+      }
     }
-  }, [mode, savedOffice, setOfficeFromMap, useGpsLocation])
+  }, [
+    mode,
+    savedOffice,
+    officeDraft.lat,
+    officeDraft.lng,
+    lat,
+    lng,
+    locationSource,
+    setOfficeFromMap,
+    useGpsLocation,
+  ])
 
   function handleOfficePick(pickLat, pickLng) {
     setOfficeDraft({ lat: pickLat, lng: pickLng })
@@ -65,11 +82,15 @@ export default function LocationSelect() {
 
   function handleStartQuiz() {
     if (!canProceed) return
-    if (mode === 'office' && officeDraft.lat != null && officeDraft.lng != null) {
-      setOfficeFromMap(officeDraft.lat, officeDraft.lng)
-    } else if (mode === 'gps') {
-      useGpsLocation()
-    }
+
+    flushSync(() => {
+      if (mode === 'office' && officeDraft.lat != null && officeDraft.lng != null) {
+        setOfficeFromMap(officeDraft.lat, officeDraft.lng)
+      } else if (mode === 'gps') {
+        useGpsLocation()
+      }
+    })
+
     navigate('/quiz')
   }
 
