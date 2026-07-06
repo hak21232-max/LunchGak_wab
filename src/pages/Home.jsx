@@ -10,7 +10,7 @@ export default function Home() {
 
   function handleStart() {
     resetAnswers()
-    navigate('/quiz')
+    navigate('/location')
   }
 
   const featuredGuides = GUIDES.slice(0, 3)

@@ -1,7 +1,6 @@
-import { createContext, useCallback, useContext, useEffect, useState } from 'react'
+import { createContext, useCallback, useContext, useState } from 'react'
 import {
   clearSavedOffice,
-  loadLocationMode,
   loadSavedOffice,
   saveOfficeLocation,
   setLocationMode,
@@ -21,11 +20,11 @@ const LocationContext = createContext(null)
 export function LocationProvider({ children }) {
   const [lat, setLat] = useState(null)
   const [lng, setLng] = useState(null)
-  const [loading, setLoading] = useState(true)
+  const [loading, setLoading] = useState(false)
   const [isFallback, setIsFallback] = useState(false)
   const [failReason, setFailReason] = useState(null)
   const [accuracy, setAccuracy] = useState(null)
-  const [locationSource, setLocationSource] = useState('gps')
+  const [locationSource, setLocationSource] = useState(null)
   const [savedOffice, setSavedOfficeState] = useState(() => loadSavedOffice())
 
   const applyOffice = useCallback((office) => {
@@ -42,6 +41,7 @@ export function LocationProvider({ children }) {
     setLoading(true)
     setFailReason(null)
     setLocationSource('gps')
+    setLocationMode('gps')
 
     if (!navigator.geolocation) {
       setLat(FALLBACK.lat)
@@ -100,54 +100,31 @@ export function LocationProvider({ children }) {
     }
   }, [])
 
-  useEffect(() => {
-    const office = loadSavedOffice()
-    const mode = loadLocationMode() ?? (office ? 'office' : 'gps')
-    setSavedOfficeState(office)
-
-    if (mode === 'office' && office) {
-      applyOffice(office)
-      return undefined
-    }
-
-    return fetchGps()
-  }, [applyOffice, fetchGps])
-
   const retry = useCallback(() => {
-    setLocationMode('gps')
     fetchGps()
   }, [fetchGps])
 
-  const saveCurrentAsOffice = useCallback(
-    (label = '회사') => {
-      if (lat == null || lng == null || isFallback) return null
-      const office = saveOfficeLocation(lat, lng, label)
+  const setOfficeFromMap = useCallback(
+    (officeLat, officeLng, label = '회사') => {
+      const office = saveOfficeLocation(officeLat, officeLng, label)
       setSavedOfficeState(office)
       applyOffice(office)
       return office
     },
-    [lat, lng, isFallback, applyOffice],
+    [applyOffice],
   )
 
-  const useOfficeLocation = useCallback(() => {
-    const office = loadSavedOffice()
-    if (!office) return
-    setLocationMode('office')
-    setSavedOfficeState(office)
-    applyOffice(office)
-  }, [applyOffice])
-
   const useGpsLocation = useCallback(() => {
-    setLocationMode('gps')
-    fetchGps()
+    return fetchGps()
   }, [fetchGps])
 
   const clearOfficeLocation = useCallback(() => {
     clearSavedOffice()
     setSavedOfficeState(null)
-    setLocationMode('gps')
-    fetchGps()
-  }, [fetchGps])
+    setLat(null)
+    setLng(null)
+    setLocationSource(null)
+  }, [])
 
   return (
     <LocationContext.Provider
@@ -160,8 +137,7 @@ export function LocationProvider({ children }) {
         accuracy,
         locationSource,
         savedOffice,
-        saveCurrentAsOffice,
-        useOfficeLocation,
+        setOfficeFromMap,
         useGpsLocation,
         clearOfficeLocation,
         retry,

@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useQuiz } from '../context/QuizContext'
 import KakaoMap from '../components/KakaoMap'
-import LocationBar from '../components/LocationBar'
+import LocationSummary from '../components/LocationSummary'
 import RestaurantCard from '../components/RestaurantCard'
 import useLocation from '../hooks/useLocation'
 import useRecommend from '../hooks/useRecommend'
@@ -39,7 +39,7 @@ export default function Result() {
   if (locLoading || loading) {
     return (
       <div className="bg-bg px-6 py-8">
-        <LocationBar compact />
+        <LocationSummary />
         <div className="flex items-center justify-center py-12">
           <p className="text-sm text-gray-500">맛집 추천 중...</p>
         </div>
@@ -50,7 +50,7 @@ export default function Result() {
   if (error) {
     return (
       <div className="bg-bg px-6 py-8">
-        <LocationBar />
+        <LocationSummary />
         <div className="flex flex-col items-center justify-center gap-4 py-12">
           <p className="text-center text-sm text-gray-600">{error}</p>
           <button
@@ -70,7 +70,7 @@ export default function Result() {
   if (data.nearby_no_match || data.picks.length === 0) {
     return (
       <div className="bg-bg px-6 py-8">
-        <LocationBar />
+        <LocationSummary />
         <p className="mt-4 text-lg font-bold text-primary">{data.greeting}</p>
         <p className="mt-2 text-sm text-gray-500">{data.recommendation_reason}</p>
         {data.weather_comment && (
@@ -101,7 +101,7 @@ export default function Result() {
 
   return (
     <div className="bg-bg px-6 py-8">
-      <LocationBar />
+      <LocationSummary />
 
       <div className="mt-4 flex gap-2">
         <button

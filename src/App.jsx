@@ -13,6 +13,7 @@ import GuideIndex from './pages/GuideIndex'
 import GuideArticle from './pages/GuideArticle'
 import BlogIndex from './pages/BlogIndex'
 import BlogPost from './pages/BlogPost'
+import LocationSelect from './pages/LocationSelect'
 
 function AppShell() {
   return (
@@ -30,6 +31,7 @@ export default function App() {
           <Routes>
             <Route element={<AppShell />}>
               <Route path="/" element={<Home />} />
+              <Route path="/location" element={<LocationSelect />} />
               <Route path="/quiz" element={<Quiz />} />
               <Route path="/result" element={<Result />} />
               <Route path="/about" element={<About />} />
