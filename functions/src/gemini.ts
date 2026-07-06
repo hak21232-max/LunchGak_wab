@@ -1,4 +1,10 @@
 import { GoogleGenerativeAI } from '@google/generative-ai'
+import {
+  buildQuizLinkedReason,
+  buildQuizSummary,
+  inferMenuHint,
+  reasonLinksToQuiz,
+} from './quizContext'
 import type {
   EnrichedCandidate,
   GeminiOutput,
@@ -39,9 +45,15 @@ const SYSTEM_PROMPT = `당신은 대한민국 직장인의 점심·회식 맛집
 
 [reason 작성 규칙 — 필수]
 - picks 3개의 reason은 절대 같은 문장·같은 패턴을 쓰지 말 것
-- 각 reason은 해당 식당만의 특징을 반드시 포함: 카테고리/대표 메뉴 추정, 블로그 긍정 키워드, 호감도, 모범음식점, 혼밥·회식 적합성 등
+- 각 reason은 반드시 사용자 5문답과 연결할 것:
+  · 자리(혼밥/팀점심/회식/미팅) → 그에 맞는 식당 특징 언급
+  · 기분(스트레스/피곤 등) → 왜 이 음식·분위기가 기분에 맞는지
+  · 땡기는 음식 → 해당 식당 카테고리에서 추정 가능한 구체 메뉴 언급 (예: 얼큰 선택 → 김치찌개·제육볶음·마라탕 등)
+  · 가용 시간 → 점심 30분·1시간 등 시간 제약과의 궁합
+  · 예산 → 1만원대·법카 등 가격대 적합성 (해당 시)
+- 예시: "혼밥에 매운 거 땡길 때 — 직화한상에서 제육·김치찌개 같은 얼큰 한식, 점심 30분 안에 해결 가능"
+- 각 reason은 해당 식당만의 특징도 포함: 카테고리, 블로그 긍정 키워드, 호감도, 모범음식점
 - "조건에 맞고 도보 N분" 같은 공통 문구만 반복 금지
-- 카테고리·블로그 건수·도보 시간 나열만 하면 안 됨
 
 [제약]
 - 반드시 제공된 후보 목록 안에서만 선정
@@ -115,12 +127,18 @@ function formatReputation(candidate: EnrichedCandidate): string {
   return `호감도 ${ratioPct}% (긍정 ${candidate.blogPositiveCount}건 / 부정 ${candidate.blogNegativeCount}건 / 총 ${candidate.blogMentions}건) | 긍정 키워드: ${keywords} | 평판점수: ${Math.round(candidate.reputationScore)}`
 }
 
-function formatCandidateBlock(candidate: EnrichedCandidate, index: number): string {
+function formatCandidateBlock(
+  candidate: EnrichedCandidate,
+  index: number,
+  req: RecommendRequest,
+): string {
   const distanceM = Math.round(Number(candidate.distance))
   const excellentLabel = candidate.excellentBonus ? 'O' : 'X'
+  const menuHint = inferMenuHint(req, candidate)
 
   return `${index + 1}. [${candidate.place_name}]
    카테고리: ${candidate.category_name} (대표: ${shortCategory(candidate.category_name)})
+   추정 메뉴(문답 음식 기준): ${menuHint}
    거리: ${distanceM}m (도보 ${candidate.walkMin}분)
    주소: ${formatAddress(candidate)}
    블로그 평판: ${formatReputation(candidate)}
@@ -142,14 +160,12 @@ function buildUserPrompt(
   const weatherDesc = weather?.description ?? '정보 없음'
   const weatherExtra = buildWeatherExtra(weather)
 
-  const candidateBlocks = candidates.map(formatCandidateBlock).join('\n\n')
+  const candidateBlocks = candidates
+    .map((c, i) => formatCandidateBlock(c, i, req))
+    .join('\n\n')
 
-  return `=== 사용자 문답 ===
-자리: ${req.situation}
-기분: ${req.mood}
-땡기는 음식: ${req.food.join(', ')}
-가용 시간: ${req.time}
-예산: ${req.budget}
+  return `=== 사용자 문답 (reason에 반드시 반영) ===
+${buildQuizSummary(req)}
 
 === 자동 감지 정보 ===
 현재 시간: ${weekday}요일 ${hour}시 (${mealType})
@@ -159,7 +175,8 @@ function buildUserPrompt(
 ${candidateBlocks}
 
 위 정보를 종합해서 오늘 이 사람에게 가장 잘 맞는 식당 3곳을 직접 골라줘.
-호감도 낮고 부정 후기 많은 곳은 피하고, picks[].reason은 식당마다 반드시 다르게 써줘.
+picks[].reason에는 5문답(자리·기분·음식·시간·예산)과 해당 식당 메뉴/특징을 구체적으로 연결해 써줘.
+호감도 낮은 곳은 피하고, reason은 식당마다 반드시 다르게.
 반드시 JSON만 반환.`
 }
 
@@ -210,56 +227,36 @@ function buildDistinctReason(
   rank: number,
   usedKeys: Set<string>,
 ): string {
+  const quizReason = buildQuizLinkedReason(req, candidate, rank)
+  const key = normalizeReasonKey(quizReason)
+  if (!usedKeys.has(key)) {
+    usedKeys.add(key)
+    return quizReason
+  }
+
   const cat = shortCategory(candidate.category_name)
+  const menu = inferMenuHint(req, candidate)
   const ratioPct = Math.round(candidate.blogPositiveRatio * 100)
   const kw = candidate.blogTopKeywords.slice(0, 2).join('·')
-  const foodHint = req.food[0]?.replace(/\(.*\)/, '').trim() ?? ''
+  const mood = req.mood.includes('스트레스') ? '스트레스 풀' : '오늘 한 끼'
 
-  const variants: string[] = []
-
-  if (candidate.excellentBonus) {
-    variants.push(
-      `${candidate.place_name}은 모범음식점 ${cat}집 — 위생·서비스 검증됐고 ${req.situation}에도 부담 없어요.`,
-    )
-  }
-
-  if (candidate.blogPositiveRatio >= 0.6 && candidate.blogMentions >= 3) {
-    variants.push(
-      kw
-        ? `${cat} ${candidate.place_name}, 블로그에서 '${kw}' 후기가 많고 호감도 ${ratioPct}%예요. ${foodHint} 땡길 때 무난해요.`
-        : `${candidate.place_name} — 최근 블로그 호감도 ${ratioPct}%로 후기가 괜찮은 ${cat}집이에요.`,
-    )
-  } else if (candidate.blogMentions >= 5 && candidate.blogPositiveRatio < 0.4) {
-    variants.push(
-      `${candidate.place_name}은 ${cat}인데, 가까워서 ${rank}순위로 넣었어요. 혼잡할 수 있으니 참고하세요.`,
-    )
-  }
-
-  if (req.situation === '혼밥') {
-    variants.push(
-      `${candidate.place_name} — ${cat} 혼밥하기 편한 편이고 도보 ${candidate.walkMin}분 거리예요. ${req.mood.includes('스트레스') ? '스트레스 풀기 좋은' : '오늘'} 한 끼로 OK.`,
-    )
-  }
-
-  variants.push(
-    `${candidate.place_name}: ${cat} 전문점인데 ${foodHint || '한 끼'}랑 잘 맞고, 도보 ${candidate.walkMin}분이면 ${req.time.includes('30분') ? '점심 타임에' : '여유롭게'} 다녀올 수 있어요.`,
-  )
-
-  if (kw) {
-    variants.push(
-      `'${kw}' 언급 많은 ${candidate.place_name} — ${cat}계에서 ${req.situation}하기 괜찮은 선택이에요.`,
-    )
-  }
+  const variants = [
+    quizReason,
+    `${req.situation}·${menu} 조건 — ${candidate.place_name} ${cat}집, ${mood}용으로 ${rank}순위.`,
+    kw
+      ? `${menu} 땡길 때 ${candidate.place_name}! '${kw}' 후기 ${ratioPct}% 호감도.`
+      : `${candidate.place_name}에서 ${menu} 가능한 ${cat}집, ${req.situation} OK.`,
+  ]
 
   for (const reason of variants) {
-    const key = normalizeReasonKey(reason)
-    if (!usedKeys.has(key)) {
-      usedKeys.add(key)
+    const k = normalizeReasonKey(reason)
+    if (!usedKeys.has(k)) {
+      usedKeys.add(k)
       return reason
     }
   }
 
-  const fallback = `${candidate.place_name}(${cat}) — ${rank}순위 추천, 도보 ${candidate.walkMin}분.`
+  const fallback = buildQuizLinkedReason(req, candidate, rank + 3)
   usedKeys.add(normalizeReasonKey(fallback))
   return fallback
 }
@@ -274,7 +271,13 @@ function normalizePick(
   const rawReason = pick.reason?.trim()
   let reason = rawReason && !isMetadataReason(rawReason) ? rawReason : ''
 
-  if (!reason || isGenericReason(reason) || usedReasonKeys.has(normalizeReasonKey(reason))) {
+  const needsQuizLink = !reason || !reasonLinksToQuiz(reason, req)
+  if (
+    !reason ||
+    isGenericReason(reason) ||
+    usedReasonKeys.has(normalizeReasonKey(reason)) ||
+    needsQuizLink
+  ) {
     reason = buildDistinctReason(req, fallback, rank, usedReasonKeys)
   } else {
     usedReasonKeys.add(normalizeReasonKey(reason))
