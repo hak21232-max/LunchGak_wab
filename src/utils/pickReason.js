@@ -5,8 +5,27 @@ export function isMetadataReason(text) {
   return false
 }
 
-/** Gemini가 쓴 "이 식당을 고른 이유" 한 줄 (메타데이터 문구는 제외) */
+/** 블로그·웨이팅 등 범용 tip (코멘트 칸에 넣지 않음) */
+export function isGenericTip(text) {
+  if (!text?.trim()) return true
+  return /블로그\s*언급|웨이팅\s*있을\s*수/.test(text)
+}
+
+/** Gemini가 쓴 "이 식당을 고른 이유" 한 줄 */
 export function getPickComment(pick) {
-  if (pick.reason && !isMetadataReason(pick.reason)) return pick.reason
+  const reason = pick.reason?.trim()
+  if (reason && !isMetadataReason(reason)) return reason
+
+  // API reason이 비었거나 메타데이터일 때 tip이 실질적 선정 이유면 사용
+  const tip = pick.tip?.trim()
+  if (tip && !isMetadataReason(tip) && !isGenericTip(tip)) return tip
+
   return null
+}
+
+export function shouldShowTip(pick, comment) {
+  const tip = pick.tip?.trim()
+  if (!tip || tip === comment) return false
+  if (isMetadataReason(tip)) return false
+  return !isGenericTip(tip)
 }

@@ -1,4 +1,4 @@
-import { getPickComment, isMetadataReason } from '../utils/pickReason'
+import { getPickComment, shouldShowTip } from '../utils/pickReason'
 
 function openKakaoPlace(url) {
   window.open(url, '_blank', 'noopener,noreferrer')
@@ -8,8 +8,7 @@ export default function RestaurantCard({ pick }) {
   const blogCount = pick.blog_count ?? 0
   const mapUrl = pick.place_url
   const comment = getPickComment(pick)
-  const showTip =
-    pick.tip && pick.tip !== comment && !isMetadataReason(pick.tip)
+  const showTip = shouldShowTip(pick, comment)
 
   return (
     <div className="rounded-2xl border border-gray-200 p-4">
@@ -51,11 +50,13 @@ export default function RestaurantCard({ pick }) {
         </li>
       </ul>
 
-      {comment && (
-        <div className="mt-3 rounded-xl bg-primary/5 px-3 py-2.5">
-          <p className="text-sm leading-relaxed text-gray-700">{comment}</p>
-        </div>
-      )}
+      <div className="mt-3 rounded-xl bg-primary/5 px-3 py-2.5">
+        <p className="text-xs font-medium text-primary/70">각이의 한마디</p>
+        <p className="mt-1 text-sm leading-relaxed text-gray-700">
+          {comment ?? '이 식당을 오늘 조건에 맞게 골랐어요.'}
+        </p>
+      </div>
+
       {showTip && (
         <p className="mt-1.5 text-xs text-gray-400">💡 {pick.tip}</p>
       )}

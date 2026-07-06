@@ -40,7 +40,8 @@ const SYSTEM_PROMPT = `당신은 대한민국 직장인의 점심·회식 맛집
 
 [제약]
 - 반드시 제공된 후보 목록 안에서만 선정 (없는 식당 지어내기 절대 금지)
-- 추천 이유는 위 기준과 반드시 연결
+- picks[].reason: 이 식당을 고른 이유 (문답·날씨·거리 연결, 1~2문장). 카테고리·블로그 건수·도보 시간 나열만 하면 안 됨
+- picks[].tip: 방문 꿀팁 (없으면 null). reason과 다른 내용
 - 직장인 언어로 짧고 명쾌하게
 - 이모지 1~2개 적절히 사용
 - 베이커리·디저트·카페(미팅 제외)는 한 끼 식사 후보에서 제외
@@ -156,12 +157,23 @@ function findCandidate(
   candidates: EnrichedCandidate[],
   index: number,
 ): EnrichedCandidate {
-  return (
-    candidates.find((c) => String(c.id) === String(pick.place_id)) ??
-    candidates.find((c) => c.place_name === pick.name) ??
-    candidates[index] ??
-    candidates[0]
-  )
+  const byId = candidates.find((c) => String(c.id) === String(pick.place_id))
+  if (byId) return byId
+
+  const byName = candidates.find((c) => c.place_name === pick.name)
+  if (byName) return byName
+
+  const target = pick.name?.replace(/\s/g, '') ?? ''
+  const byPartial = candidates.find((c) => {
+    const name = c.place_name.replace(/\s/g, '')
+    return (
+      name === target ||
+      (target.length >= 2 && (name.includes(target) || target.includes(name)))
+    )
+  })
+  if (byPartial) return byPartial
+
+  return candidates[index] ?? candidates[0]
 }
 
 function isMetadataReason(text: string): boolean {
@@ -258,7 +270,7 @@ export function fallbackGeminiOutput(
       name: p.place_name,
       category: p.category_name,
       reason: buildFallbackReason(req, p),
-      tip: p.blogMentions > 100 ? '블로그 언급 많은 곳 — 웨이팅 있을 수 있어요.' : null,
+      tip: null,
       walk_min: p.walkMin,
       mood_match_score: Math.max(70, 92 - index * 8),
     })),

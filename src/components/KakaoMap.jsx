@@ -8,8 +8,8 @@ const RANK_COLORS = {
   3: '#92400E',
 }
 
-const RANK_SIZES = { 1: 36, 2: 28, 3: 28 }
-const RANK_Z_INDEX = { 1: 30, 2: 20, 3: 15 }
+const RANK_SIZES = { 1: 38, 2: 28, 3: 28 }
+const RANK_Z_INDEX = { 1: 40, 2: 25, 3: 20 }
 
 const USER_COLOR = '#3B82F6'
 
@@ -48,20 +48,77 @@ function isValidCoord(lat, lng) {
   return Number.isFinite(lat) && Number.isFinite(lng) && !(lat === 0 && lng === 0)
 }
 
-/** 겹치는 마커를 살짝 벌려서 1위 라벨이 가려지지 않게 */
-function spreadPosition(lat, lng, rank, usedPositions) {
-  const key = `${lat.toFixed(5)},${lng.toFixed(5)}`
+function haversineM(lat1, lng1, lat2, lng2) {
+  const R = 6371000
+  const toRad = (d) => (d * Math.PI) / 180
+  const dLat = toRad(lat2 - lat1)
+  const dLng = toRad(lng2 - lng1)
+  const a =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLng / 2) ** 2
+  return 2 * R * Math.asin(Math.sqrt(a))
+}
+
+/** 겹치는 마커·GPS와 너무 가까운 1위를 벌림 */
+function resolveMarkerPosition(lat, lng, rank, userLat, userLng, usedPositions) {
+  let resolvedLat = lat
+  let resolvedLng = lng
+
+  if (rank === 1 && haversineM(userLat, userLng, lat, lng) < 50) {
+    resolvedLat += 0.00014
+    resolvedLng += 0.0001
+  }
+
+  const key = `${resolvedLat.toFixed(4)},${resolvedLng.toFixed(4)}`
   const count = usedPositions.get(key) ?? 0
   usedPositions.set(key, count + 1)
 
-  if (count === 0) return { lat, lng }
-
-  const step = 0.00004
-  const angle = ((rank - 1) * 120 + count * 45) * (Math.PI / 180)
-  return {
-    lat: lat + Math.sin(angle) * step * count,
-    lng: lng + Math.cos(angle) * step * count,
+  if (count > 0) {
+    const step = 0.0001
+    const angle = ((rank - 1) * 130 + count * 50) * (Math.PI / 180)
+    resolvedLat += Math.sin(angle) * step * count
+    resolvedLng += Math.cos(angle) * step * count
   }
+
+  return { lat: resolvedLat, lng: resolvedLng }
+}
+
+function createRankLabelOverlay(kakao, map, position, pick, color) {
+  const el = document.createElement('div')
+  const isFirst = pick.rank === 1
+  el.style.cssText = [
+    'padding:4px 8px',
+    'border-radius:8px',
+    `background:${isFirst ? '#1B2A4A' : '#fff'}`,
+    `color:${isFirst ? '#fff' : '#1B2A4A'}`,
+    'font-size:11px',
+    'font-weight:700',
+    'white-space:nowrap',
+    `border:2px solid ${color}`,
+    'box-shadow:0 2px 6px rgba(0,0,0,.18)',
+    'pointer-events:none',
+  ].join(';')
+  el.textContent = `${pick.rank}위 ${pick.name}`
+
+  const overlay = new kakao.maps.CustomOverlay({
+    position,
+    content: el,
+    yAnchor: 2.4,
+    zIndex: RANK_Z_INDEX[pick.rank] ?? 15,
+  })
+  overlay.setMap(map)
+  return overlay
+}
+
+function clearOverlays(kakao, overlays) {
+  overlays.forEach(({ marker, labelOverlay, infowindow, onMarkerClick }) => {
+    if (onMarkerClick && kakao?.maps?.event) {
+      kakao.maps.event.removeListener(marker, 'click', onMarkerClick)
+    }
+    marker?.setMap(null)
+    labelOverlay?.setMap(null)
+    infowindow?.close()
+  })
 }
 
 export default function KakaoMap({ picks, userLat, userLng, onStatusChange }) {
@@ -86,13 +143,7 @@ export default function KakaoMap({ picks, userLat, userLng, onStatusChange }) {
         if (cancelled || !mapRef.current) return
 
         try {
-          overlaysRef.current.forEach(({ marker, infowindow, onMarkerClick }) => {
-            if (onMarkerClick) {
-              kakao.maps.event.removeListener(marker, 'click', onMarkerClick)
-            }
-            marker.setMap(null)
-            infowindow?.close()
-          })
+          clearOverlays(kakao, overlaysRef.current)
           overlaysRef.current = []
 
           const center = new kakao.maps.LatLng(userLat, userLng)
@@ -113,17 +164,26 @@ export default function KakaoMap({ picks, userLat, userLng, onStatusChange }) {
           const userMarker = new kakao.maps.Marker({
             position: center,
             map,
-            image: createCircleMarkerImage(kakao, USER_COLOR, 24),
+            image: createCircleMarkerImage(kakao, USER_COLOR, 22),
             zIndex: 5,
           })
-          overlaysRef.current.push({ marker: userMarker, infowindow: null })
+          overlaysRef.current.push({ marker: userMarker })
 
-          const mapPicks = picks.filter((pick) => isValidCoord(pick.lat, pick.lng))
+          const mapPicks = [...picks]
+            .filter((pick) => isValidCoord(pick.lat, pick.lng))
+            .sort((a, b) => a.rank - b.rank)
+
           const usedPositions = new Map()
-          let rankOneOverlay = null
 
           mapPicks.forEach((pick) => {
-            const spread = spreadPosition(pick.lat, pick.lng, pick.rank, usedPositions)
+            const spread = resolveMarkerPosition(
+              pick.lat,
+              pick.lng,
+              pick.rank,
+              userLat,
+              userLng,
+              usedPositions,
+            )
             const position = new kakao.maps.LatLng(spread.lat, spread.lng)
             bounds.extend(position)
 
@@ -136,6 +196,8 @@ export default function KakaoMap({ picks, userLat, userLng, onStatusChange }) {
               zIndex: RANK_Z_INDEX[pick.rank] ?? 10,
             })
 
+            const labelOverlay = createRankLabelOverlay(kakao, map, position, pick, color)
+
             const infowindow = new kakao.maps.InfoWindow({
               content: `<div style="padding:8px 10px;font-size:12px;white-space:nowrap;font-weight:600;">${pick.rank}위 ${pick.name} · 도보 ${pick.walk_min}분</div>`,
             })
@@ -147,20 +209,10 @@ export default function KakaoMap({ picks, userLat, userLng, onStatusChange }) {
 
             kakao.maps.event.addListener(marker, 'click', onMarkerClick)
 
-            const overlay = { marker, infowindow, onMarkerClick }
-            overlaysRef.current.push(overlay)
-
-            if (pick.rank === 1) rankOneOverlay = overlay
+            overlaysRef.current.push({ marker, labelOverlay, infowindow, onMarkerClick })
           })
 
           map.setBounds(bounds)
-
-          if (rankOneOverlay) {
-            setTimeout(() => {
-              if (!cancelled) rankOneOverlay.infowindow.open(map, rankOneOverlay.marker)
-            }, 300)
-          }
-
           updateStatus('ready')
         } catch {
           updateStatus('init_error')
@@ -179,13 +231,7 @@ export default function KakaoMap({ picks, userLat, userLng, onStatusChange }) {
 
     return () => {
       cancelled = true
-      overlaysRef.current.forEach(({ marker, infowindow, onMarkerClick }) => {
-        if (onMarkerClick && window.kakao?.maps?.event) {
-          window.kakao.maps.event.removeListener(marker, 'click', onMarkerClick)
-        }
-        marker.setMap(null)
-        infowindow?.close()
-      })
+      clearOverlays(window.kakao, overlaysRef.current)
       overlaysRef.current = []
     }
   }, [picks, userLat, userLng])
