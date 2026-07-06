@@ -151,31 +151,67 @@ function parseGeminiJson(text: string): GeminiOutput {
   return JSON.parse(cleaned) as GeminiOutput
 }
 
+function findCandidate(
+  pick: Partial<GeminiPickDraft>,
+  candidates: EnrichedCandidate[],
+  index: number,
+): EnrichedCandidate {
+  return (
+    candidates.find((c) => String(c.id) === String(pick.place_id)) ??
+    candidates.find((c) => c.place_name === pick.name) ??
+    candidates[index] ??
+    candidates[0]
+  )
+}
+
+function isMetadataReason(text: string): boolean {
+  return /음식점\s*>/.test(text) && /도보\s*\d+분/.test(text)
+}
+
+function buildFallbackReason(
+  req: RecommendRequest,
+  candidate: EnrichedCandidate,
+): string {
+  const foodHint = req.food[0]?.replace(/\(.*\)/, '').trim() ?? '한 끼'
+  return `${req.situation} · ${foodHint} 조건에 맞고 도보 ${candidate.walkMin}분 거리라 오늘 pick이에요.`
+}
+
 function normalizePick(
   pick: Partial<GeminiPickDraft>,
   fallback: EnrichedCandidate,
   rank: number,
+  req?: RecommendRequest,
 ): GeminiPickDraft {
+  const rawReason = pick.reason?.trim()
+  const reason =
+    rawReason && !isMetadataReason(rawReason)
+      ? rawReason
+      : req
+        ? buildFallbackReason(req, fallback)
+        : `${fallback.place_name} — 도보 ${fallback.walkMin}분 거리의 추천이에요.`
+
   return {
     rank: pick.rank ?? rank,
-    place_id: String(pick.place_id ?? fallback.id),
+    place_id: String(fallback.id),
     name: pick.name ?? fallback.place_name,
     category: pick.category ?? fallback.category_name,
-    reason: pick.reason ?? `${fallback.category_name}, 도보 ${fallback.walkMin}분 거리예요.`,
+    reason,
     tip: pick.tip ?? null,
     walk_min: pick.walk_min ?? fallback.walkMin,
     mood_match_score: Math.min(100, Math.max(0, pick.mood_match_score ?? 80)),
   }
 }
 
-function normalizeOutput(output: GeminiOutput, candidates: EnrichedCandidate[]): GeminiOutput {
-  const candidateMap = new Map(candidates.map((c) => [String(c.id), c]))
-
+function normalizeOutput(
+  output: GeminiOutput,
+  candidates: EnrichedCandidate[],
+  req: RecommendRequest,
+): GeminiOutput {
   const picks = (output.picks ?? [])
     .slice(0, 3)
     .map((pick, index) => {
-      const fallback = candidateMap.get(String(pick.place_id)) ?? candidates[index] ?? candidates[0]
-      return normalizePick(pick, fallback, index + 1)
+      const fallback = findCandidate(pick, candidates, index)
+      return normalizePick(pick, fallback, index + 1, req)
     })
 
   return {
@@ -202,7 +238,7 @@ export async function generateRecommendations(
 
   const result = await model.generateContent(buildUserPrompt(req, candidates, weather))
   const text = result.response.text()
-  return normalizeOutput(parseGeminiJson(text), candidates)
+  return normalizeOutput(parseGeminiJson(text), candidates, req)
 }
 
 export function fallbackGeminiOutput(
@@ -221,7 +257,7 @@ export function fallbackGeminiOutput(
       place_id: p.id,
       name: p.place_name,
       category: p.category_name,
-      reason: `${p.category_name}, 도보 ${p.walkMin}분 · 블로그 ${p.blogMentions}건${p.excellentBonus ? ' · 모범음식점' : ''}.`,
+      reason: buildFallbackReason(req, p),
       tip: p.blogMentions > 100 ? '블로그 언급 많은 곳 — 웨이팅 있을 수 있어요.' : null,
       walk_min: p.walkMin,
       mood_match_score: Math.max(70, 92 - index * 8),

@@ -8,6 +8,9 @@ const RANK_COLORS = {
   3: '#92400E',
 }
 
+const RANK_SIZES = { 1: 36, 2: 28, 3: 28 }
+const RANK_Z_INDEX = { 1: 30, 2: 20, 3: 15 }
+
 const USER_COLOR = '#3B82F6'
 
 const MAP_MESSAGES = {
@@ -39,6 +42,26 @@ function createCircleMarkerImage(kakao, color, size = 28) {
     new kakao.maps.Size(size, size),
     { offset: new kakao.maps.Point(size / 2, size / 2) },
   )
+}
+
+function isValidCoord(lat, lng) {
+  return Number.isFinite(lat) && Number.isFinite(lng) && !(lat === 0 && lng === 0)
+}
+
+/** 겹치는 마커를 살짝 벌려서 1위 라벨이 가려지지 않게 */
+function spreadPosition(lat, lng, rank, usedPositions) {
+  const key = `${lat.toFixed(5)},${lng.toFixed(5)}`
+  const count = usedPositions.get(key) ?? 0
+  usedPositions.set(key, count + 1)
+
+  if (count === 0) return { lat, lng }
+
+  const step = 0.00004
+  const angle = ((rank - 1) * 120 + count * 45) * (Math.PI / 180)
+  return {
+    lat: lat + Math.sin(angle) * step * count,
+    lng: lng + Math.cos(angle) * step * count,
+  }
 }
 
 export default function KakaoMap({ picks, userLat, userLng, onStatusChange }) {
@@ -90,24 +113,31 @@ export default function KakaoMap({ picks, userLat, userLng, onStatusChange }) {
           const userMarker = new kakao.maps.Marker({
             position: center,
             map,
-            image: createCircleMarkerImage(kakao, USER_COLOR),
-            zIndex: 10,
+            image: createCircleMarkerImage(kakao, USER_COLOR, 24),
+            zIndex: 5,
           })
           overlaysRef.current.push({ marker: userMarker, infowindow: null })
 
-          picks.forEach((pick) => {
-            const position = new kakao.maps.LatLng(pick.lat, pick.lng)
+          const mapPicks = picks.filter((pick) => isValidCoord(pick.lat, pick.lng))
+          const usedPositions = new Map()
+          let rankOneOverlay = null
+
+          mapPicks.forEach((pick) => {
+            const spread = spreadPosition(pick.lat, pick.lng, pick.rank, usedPositions)
+            const position = new kakao.maps.LatLng(spread.lat, spread.lng)
             bounds.extend(position)
 
             const color = RANK_COLORS[pick.rank] ?? '#6B7280'
+            const size = RANK_SIZES[pick.rank] ?? 28
             const marker = new kakao.maps.Marker({
               position,
               map,
-              image: createCircleMarkerImage(kakao, color),
+              image: createCircleMarkerImage(kakao, color, size),
+              zIndex: RANK_Z_INDEX[pick.rank] ?? 10,
             })
 
             const infowindow = new kakao.maps.InfoWindow({
-              content: `<div style="padding:8px 10px;font-size:12px;white-space:nowrap;">${pick.rank}위 ${pick.name} · 도보 ${pick.walk_min}분</div>`,
+              content: `<div style="padding:8px 10px;font-size:12px;white-space:nowrap;font-weight:600;">${pick.rank}위 ${pick.name} · 도보 ${pick.walk_min}분</div>`,
             })
 
             const onMarkerClick = () => {
@@ -117,10 +147,20 @@ export default function KakaoMap({ picks, userLat, userLng, onStatusChange }) {
 
             kakao.maps.event.addListener(marker, 'click', onMarkerClick)
 
-            overlaysRef.current.push({ marker, infowindow, onMarkerClick })
+            const overlay = { marker, infowindow, onMarkerClick }
+            overlaysRef.current.push(overlay)
+
+            if (pick.rank === 1) rankOneOverlay = overlay
           })
 
           map.setBounds(bounds)
+
+          if (rankOneOverlay) {
+            setTimeout(() => {
+              if (!cancelled) rankOneOverlay.infowindow.open(map, rankOneOverlay.marker)
+            }, 300)
+          }
+
           updateStatus('ready')
         } catch {
           updateStatus('init_error')

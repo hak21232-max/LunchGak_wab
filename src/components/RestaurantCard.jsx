@@ -1,3 +1,5 @@
+import { getPickComment, isMetadataReason } from '../utils/pickReason'
+
 function openKakaoPlace(url) {
   window.open(url, '_blank', 'noopener,noreferrer')
 }
@@ -5,6 +7,9 @@ function openKakaoPlace(url) {
 export default function RestaurantCard({ pick }) {
   const blogCount = pick.blog_count ?? 0
   const mapUrl = pick.place_url
+  const comment = getPickComment(pick)
+  const showTip =
+    pick.tip && pick.tip !== comment && !isMetadataReason(pick.tip)
 
   return (
     <div className="rounded-2xl border border-gray-200 p-4">
@@ -46,8 +51,13 @@ export default function RestaurantCard({ pick }) {
         </li>
       </ul>
 
-      {pick.tip && (
-        <p className="mt-3 text-xs text-gray-400">💡 {pick.tip}</p>
+      {comment && (
+        <div className="mt-3 rounded-xl bg-primary/5 px-3 py-2.5">
+          <p className="text-sm leading-relaxed text-gray-700">{comment}</p>
+        </div>
+      )}
+      {showTip && (
+        <p className="mt-1.5 text-xs text-gray-400">💡 {pick.tip}</p>
       )}
     </div>
   )

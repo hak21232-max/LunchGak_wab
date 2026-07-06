@@ -45,20 +45,45 @@ function buildEnrichedCandidates(
   })
 }
 
+function resolveCandidate(
+  pick: { place_id: string; name: string; rank: number },
+  candidates: EnrichedCandidate[],
+): EnrichedCandidate | undefined {
+  const byId = candidates.find((c) => String(c.id) === String(pick.place_id))
+  if (byId) return byId
+
+  const byName = candidates.find((c) => c.place_name === pick.name)
+  if (byName) return byName
+
+  const normalized = pick.name?.replace(/\s/g, '')
+  const byPartialName = candidates.find(
+    (c) =>
+      c.place_name.replace(/\s/g, '') === normalized ||
+      c.place_name.includes(pick.name) ||
+      pick.name.includes(c.place_name),
+  )
+  if (byPartialName) return byPartialName
+
+  return candidates[pick.rank - 1]
+}
+
+function toCoord(value: string | undefined): number {
+  const n = Number(value)
+  return Number.isFinite(n) ? n : NaN
+}
+
 function buildResponse(
   req: RecommendRequest,
   candidates: EnrichedCandidate[],
   gemini: ReturnType<typeof fallbackGeminiOutput>,
   weatherComment: string | null,
 ): RecommendResponse {
-  const placeMap = new Map(candidates.map((p) => [String(p.id), p]))
-
   const picks: PickResult[] = gemini.picks.slice(0, 3).map((pick) => {
-    const place = placeMap.get(String(pick.place_id))
+    const place = resolveCandidate(pick, candidates)
 
     return {
       rank: pick.rank,
-      place_id: pick.place_id,
+      place_id: place?.id ?? pick.place_id,
       name: pick.name || place?.place_name || '추천 식당',
       category: pick.category || place?.category_name || '',
       reason: pick.reason,
@@ -68,8 +93,8 @@ function buildResponse(
       place_url: place?.place_url ?? '',
       blog_count: place?.blogMentions ?? 0,
       is_exemplary: place?.isExemplary ?? false,
-      lat: Number(place?.y ?? req.lat),
-      lng: Number(place?.x ?? req.lng),
+      lat: toCoord(place?.y),
+      lng: toCoord(place?.x),
     }
   })
 
