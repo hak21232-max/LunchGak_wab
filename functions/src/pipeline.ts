@@ -1,16 +1,17 @@
 import { estimateWalkMin, parseRadiusMeters, searchNearbyRestaurants } from './kakao'
-import { filterCandidatesByQuiz } from './filters'
 import { enrichWithBlogData } from './naver'
 import { applyExcellentRestaurantBonus } from './publicdata'
 import { fetchWeather, buildWeatherComment } from './weather'
 import { fallbackGeminiOutput, generateRecommendations } from './gemini'
 import type {
+  EnrichedCandidate,
   KakaoPlace,
   PickResult,
   RecommendRequest,
   RecommendResponse,
-  ScoredPlace,
 } from './types'
+
+const GEMINI_CANDIDATE_LIMIT = 15
 
 interface PipelineSecrets {
   kakaoRestApiKey: string
@@ -21,58 +22,49 @@ interface PipelineSecrets {
   dataGoKrServiceKey: string
 }
 
-type ScoringCandidate = KakaoPlace & { excellentBonus?: boolean }
-
-function scorePlaces(
-  places: ScoringCandidate[],
+function buildEnrichedCandidates(
+  places: KakaoPlace[],
   blogScores: Map<string, number>,
-): ScoredPlace[] {
-  return places
-    .map((place) => {
-      const distanceM = Math.max(Number(place.distance), 1)
-      const walkMin = estimateWalkMin(distanceM)
-      const blogMentions = blogScores.get(place.place_name) ?? 0
-      const excellentBonus = place.excellentBonus ?? false
+  placesWithBonus: Array<KakaoPlace & { excellentBonus?: boolean }>,
+): EnrichedCandidate[] {
+  const bonusMap = new Map(
+    placesWithBonus.map((place) => [place.id, place.excellentBonus ?? false]),
+  )
 
-      const distanceScore = (1 / distanceM) * 10000
-      const blogScore = Math.log(blogMentions + 1) * 5
-      const excellentScore = excellentBonus ? 15 : 0
-      const score = distanceScore + blogScore + excellentScore
+  return places.slice(0, GEMINI_CANDIDATE_LIMIT).map((place) => {
+    const distanceM = Math.max(Number(place.distance), 1)
+    const excellentBonus = bonusMap.get(place.id) ?? false
 
-      return {
-        ...place,
-        score,
-        walkMin,
-        blogMentions,
-        isExemplary: excellentBonus,
-        excellentBonus,
-        distanceScore,
-        blogScore,
-        excellentScore,
-      }
-    })
-    .sort((a, b) => b.score - a.score)
+    return {
+      ...place,
+      walkMin: estimateWalkMin(distanceM),
+      blogMentions: blogScores.get(place.place_name) ?? 0,
+      isExemplary: excellentBonus,
+      excellentBonus,
+    }
+  })
 }
 
 function buildResponse(
   req: RecommendRequest,
-  scored: ScoredPlace[],
+  candidates: EnrichedCandidate[],
   gemini: ReturnType<typeof fallbackGeminiOutput>,
   weatherComment: string | null,
 ): RecommendResponse {
-  const placeMap = new Map(scored.map((p) => [String(p.id), p]))
+  const placeMap = new Map(candidates.map((p) => [String(p.id), p]))
 
-  const picks: PickResult[] = gemini.picks.slice(0, 3).map((pick, index) => {
-    const place = placeMap.get(String(pick.place_id)) ?? scored[index]
+  const picks: PickResult[] = gemini.picks.slice(0, 3).map((pick) => {
+    const place = placeMap.get(String(pick.place_id))
+
     return {
-      rank: index + 1,
-      place_id: place?.id ?? pick.place_id,
-      name: place?.place_name ?? '추천 식당',
-      category: place?.category_name ?? '',
+      rank: pick.rank,
+      place_id: pick.place_id,
+      name: pick.name || place?.place_name || '추천 식당',
+      category: pick.category || place?.category_name || '',
       reason: pick.reason,
       tip: pick.tip,
-      walk_min: place?.walkMin ?? 5,
-      mood_match_score: Math.min(99, Math.round(place?.score ?? 70)),
+      walk_min: pick.walk_min ?? place?.walkMin ?? 5,
+      mood_match_score: pick.mood_match_score,
       place_url: place?.place_url ?? '',
       blog_count: place?.blogMentions ?? 0,
       is_exemplary: place?.isExemplary ?? false,
@@ -99,51 +91,45 @@ export async function runRecommendationPipeline(
   const weather = await fetchWeather(req.lat, req.lng, secrets.openWeatherApiKey)
   const weatherComment = buildWeatherComment(weather)
 
-  // 2. 카카오 Local API 후보 조회 (식사 가능 업소 필터 포함)
+  // 2. 카카오 Local API — 반경 내 음식점 (최대 30개, 거리순)
   const places = await searchNearbyRestaurants(
     req.lat,
     req.lng,
     radius,
     secrets.kakaoRestApiKey,
-    req.situation,
-    req.time,
+    30,
   )
 
   if (places.length === 0) {
-    throw new Error('주변에 점심·저녁 식사 가능한 음식점이 없어요.')
+    throw new Error('주변에 음식점이 없어요.')
   }
 
-  // 3. 5문항 기본 필터 (자리·기분·음식·시간·예산)
-  const filteredPlaces = filterCandidatesByQuiz(places, req)
-  if (filteredPlaces.length === 0) {
-    throw new Error('조건에 맞는 식당을 찾지 못했어요. 답변을 조금 바꿔볼까요?')
-  }
+  const targetPlaces = places.slice(0, GEMINI_CANDIDATE_LIMIT)
 
-  // 4. 네이버 블로그 언급 수 가점
+  // 3. 네이버 블로그 언급 수
   const { blogScores } = await enrichWithBlogData(
-    filteredPlaces,
+    targetPlaces,
     secrets.naverClientId,
     secrets.naverClientSecret,
   )
 
-  // 5. 모범음식점 가점 적용
+  // 4. 모범음식점 여부
   const placesWithBonus = await applyExcellentRestaurantBonus(
-    filteredPlaces,
+    targetPlaces,
     secrets.dataGoKrServiceKey,
   )
 
-  // 6. 스코어링
-  const scored = scorePlaces(placesWithBonus, blogScores)
+  const candidates = buildEnrichedCandidates(targetPlaces, blogScores, placesWithBonus)
 
-  // 7. Gemini 추천
+  // 5. Gemini 추천 (순위·필터링 전담)
   let geminiOutput
   try {
-    geminiOutput = await generateRecommendations(req, scored, weather, secrets.geminiApiKey)
+    geminiOutput = await generateRecommendations(req, candidates, weather, secrets.geminiApiKey)
   } catch {
-    geminiOutput = fallbackGeminiOutput(req, scored, weather)
+    geminiOutput = fallbackGeminiOutput(req, candidates, weather)
   }
 
-  return buildResponse(req, scored, geminiOutput, weatherComment)
+  return buildResponse(req, candidates, geminiOutput, weatherComment)
 }
 
 export function validateRecommendRequest(body: unknown): RecommendRequest {

@@ -150,8 +150,7 @@ export async function searchNearbyRestaurants(
   lng: number,
   radius: number,
   apiKey: string,
-  situation: string,
-  time: string,
+  maxResults = 30,
 ): Promise<KakaoPlace[]> {
   const seen = new Set<string>()
   const results: KakaoPlace[] = []
@@ -179,9 +178,12 @@ export async function searchNearbyRestaurants(
 
     for (const place of batch) {
       if (seen.has(place.id)) continue
-      if (!isEligibleMealPlace(place.category_name, situation, time)) continue
       seen.add(place.id)
       results.push(place)
+
+      if (results.length >= maxResults) {
+        return results
+      }
     }
 
     if (batch.length < 15) break

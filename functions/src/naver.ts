@@ -20,22 +20,8 @@ export async function getBlogMentionCount(
   return data.total ?? 0
 }
 
-async function checkExemplaryRestaurant(
-  placeName: string,
-  clientId: string,
-  clientSecret: string,
-): Promise<boolean> {
-  const count = await getBlogMentionCount(
-    `"${placeName}" 모범음식점`,
-    clientId,
-    clientSecret,
-  )
-  return count > 0
-}
-
 export interface BlogEnrichment {
   blogScores: Map<string, number>
-  exemplaryFlags: Map<string, boolean>
 }
 
 export async function enrichWithBlogData<T extends { place_name: string }>(
@@ -44,19 +30,13 @@ export async function enrichWithBlogData<T extends { place_name: string }>(
   clientSecret: string,
 ): Promise<BlogEnrichment> {
   const blogScores = new Map<string, number>()
-  const exemplaryFlags = new Map<string, boolean>()
-  const topPlaces = places.slice(0, 15)
 
   await Promise.all(
-    topPlaces.map(async (place) => {
-      const [mentions, isExemplary] = await Promise.all([
-        getBlogMentionCount(place.place_name, clientId, clientSecret),
-        checkExemplaryRestaurant(place.place_name, clientId, clientSecret),
-      ])
+    places.map(async (place) => {
+      const mentions = await getBlogMentionCount(place.place_name, clientId, clientSecret)
       blogScores.set(place.place_name, mentions)
-      exemplaryFlags.set(place.place_name, isExemplary)
     }),
   )
 
-  return { blogScores, exemplaryFlags }
+  return { blogScores }
 }

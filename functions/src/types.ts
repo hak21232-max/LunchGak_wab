@@ -16,17 +16,15 @@ export interface KakaoPlace {
   x: string
   y: string
   place_url: string
+  address_name?: string
+  road_address_name?: string
 }
 
-export interface ScoredPlace extends KakaoPlace {
-  score: number
+export interface EnrichedCandidate extends KakaoPlace {
   walkMin: number
   blogMentions: number
   isExemplary: boolean
   excellentBonus: boolean
-  distanceScore: number
-  blogScore: number
-  excellentScore: number
 }
 
 export interface WeatherInfo {
@@ -59,9 +57,14 @@ export interface RecommendResponse {
 }
 
 export interface GeminiPickDraft {
+  rank: number
   place_id: string
+  name: string
+  category: string
   reason: string
   tip: string | null
+  walk_min: number
+  mood_match_score: number
 }
 
 export interface GeminiOutput {

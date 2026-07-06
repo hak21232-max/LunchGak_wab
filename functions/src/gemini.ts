@@ -1,60 +1,149 @@
 import { GoogleGenerativeAI } from '@google/generative-ai'
 import type {
+  EnrichedCandidate,
   GeminiOutput,
+  GeminiPickDraft,
   RecommendRequest,
-  ScoredPlace,
   WeatherInfo,
 } from './types'
 
-function buildPrompt(
+const SYSTEM_PROMPT = `당신은 대한민국 직장인의 점심·회식 맛집을 추천하는 AI 어시스턴트 "각이"입니다.
+
+[역할]
+제공된 모든 정보(문답 결과, 날씨, 식당 목록, 블로그 언급 수, 모범음식점 여부)를
+종합적으로 판단해서 최적의 식당 3곳을 직접 선정하고 순위를 매겨줘.
+
+[순위 결정 기준 — 중요도 순]
+1. 사용자 문답 (자리/기분/음식/시간/예산) — 가장 중요
+   - 혼밥이면 혼자 먹기 편한 곳 우선
+   - 30분이내면 가까운 곳 절대 우선
+   - 법카면 가격 제한 없이 분위기 있는 곳
+   - 기분/음식 궁합이 맞는 카테고리 우선
+
+2. 날씨 — 중요
+   - 비: 실내, 국물류 우선
+   - 폭염(33도↑): 냉면, 실내 에어컨 우선
+   - 추위(5도↓): 따뜻한 국물 우선
+   - 쾌청: 제한 없음
+
+3. 거리 — 중요
+   - 30분이내 선택 시 400m 이내 절대 우선
+   - 1시간이면 700m 이내
+
+4. 네이버 블로그 언급 수 — 참고
+   - 언급 수가 많을수록 인기 있는 곳
+   - 단, 거리·문답 조건이 맞으면 언급 수가 적어도 추천 가능
+
+5. 모범음식점 인증 — 가점 요소
+   - 위생·서비스 검증된 곳이므로 동점일 때 우선
+   - 추천 이유에 자연스럽게 언급
+
+[제약]
+- 반드시 제공된 후보 목록 안에서만 선정 (없는 식당 지어내기 절대 금지)
+- 추천 이유는 위 기준과 반드시 연결
+- 직장인 언어로 짧고 명쾌하게
+- 이모지 1~2개 적절히 사용
+- 베이커리·디저트·카페(미팅 제외)는 한 끼 식사 후보에서 제외
+
+[출력 — 반드시 JSON만, 마크다운 없이]
+{
+  "greeting": "오늘 상황 공감 한 마디 (1문장, 이모지 1개)",
+  "recommendation_reason": "선정 배경 요약 (2문장 이내)",
+  "picks": [
+    {
+      "rank": 1,
+      "place_id": "카카오 id",
+      "name": "식당명",
+      "category": "카테고리",
+      "reason": "1순위 선정 이유 — 문답·날씨·거리·인기도를 연결해서 (1~2문장)",
+      "tip": "꿀팁 (1문장, 없으면 null)",
+      "walk_min": 5,
+      "mood_match_score": 92
+    },
+    { "rank": 2, "...": "..." },
+    { "rank": 3, "...": "..." }
+  ],
+  "weather_comment": "날씨 한 마디 (특이사항 없으면 null)"
+}`
+
+const WEEKDAYS = ['일', '월', '화', '수', '목', '금', '토']
+
+function getKstNow(): Date {
+  return new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Seoul' }))
+}
+
+function resolveMealType(hour: number): string {
+  if (hour >= 17) return '저녁'
+  if (hour >= 11) return '점심'
+  if (hour >= 5) return '브런치·점심'
+  return '야식·새벽'
+}
+
+function buildWeatherExtra(weather: WeatherInfo | null): string {
+  if (!weather) return ''
+
+  const temp = weather.temp
+  const desc = weather.description
+
+  if (desc.includes('비') || desc.includes('소나기') || desc.includes('눈')) {
+    return '(비/눈 — 실내·국물류 우선 고려)'
+  }
+  if (temp >= 33) return '(폭염 — 냉면·실내 우선 고려)'
+  if (temp <= 5) return '(추위 — 따뜻한 국물 우선 고려)'
+  return '(쾌청 — 날씨 제약 적음)'
+}
+
+function formatAddress(candidate: EnrichedCandidate): string {
+  return candidate.road_address_name || candidate.address_name || '주소 정보 없음'
+}
+
+function formatCandidateBlock(candidate: EnrichedCandidate, index: number): string {
+  const distanceM = Math.round(Number(candidate.distance))
+  const excellentLabel = candidate.excellentBonus ? 'O' : 'X'
+
+  return `${index + 1}. [${candidate.place_name}]
+   카테고리: ${candidate.category_name}
+   거리: ${distanceM}m (도보 ${candidate.walkMin}분)
+   주소: ${formatAddress(candidate)}
+   네이버 블로그 언급: ${candidate.blogMentions}건
+   모범음식점: ${excellentLabel}
+   카카오맵: ${candidate.place_url}
+   place_id: ${candidate.id}`
+}
+
+function buildUserPrompt(
   req: RecommendRequest,
-  candidates: ScoredPlace[],
+  candidates: EnrichedCandidate[],
   weather: WeatherInfo | null,
 ): string {
-  const candidateLines = candidates
-    .slice(0, 8)
-    .map((p, i) => {
-      const distanceM = Math.round(Number(p.distance))
-      const excellentLabel = p.excellentBonus ? 'O' : 'X'
-      return `${i + 1}. id=${p.id} | ${p.place_name} | ${p.category_name} | 거리: ${distanceM}m | 도보 ${p.walkMin}분 | 네이버 블로그: ${p.blogMentions}건 | 모범음식점: ${excellentLabel} | score=${Math.round(p.score)}`
-    })
-    .join('\n')
+  const kst = getKstNow()
+  const weekday = WEEKDAYS[kst.getDay()]
+  const hour = kst.getHours()
+  const mealType = resolveMealType(hour)
 
-  const weatherLine = weather
-    ? `날씨: ${Math.round(weather.temp)}°C, ${weather.description}`
-    : '날씨: 정보 없음'
+  const temp = weather ? Math.round(weather.temp) : null
+  const weatherDesc = weather?.description ?? '정보 없음'
+  const weatherExtra = buildWeatherExtra(weather)
 
-  return `당신은 직장인 점심·회식 맞춤 AI "런치각"입니다.
-톤: 친근하고 짧고 명쾌하게. 직장인 밈 활용.
+  const candidateBlocks = candidates.map(formatCandidateBlock).join('\n\n')
 
-## 중요 규칙
-- 베이커리·제과·디저트·아이스크림 전문점은 절대 추천하지 마세요.
-- 카페·커피 전문점은 "미팅" 상황이 아니면 추천하지 마세요.
-- 한 끼 식사(점심·저녁)가 가능한 식당만 골라주세요.
+  return `=== 사용자 문답 ===
+자리: ${req.situation}
+기분: ${req.mood}
+땡기는 음식: ${req.food.join(', ')}
+가용 시간: ${req.time}
+예산: ${req.budget}
 
-## 사용자 조건
-- 상황: ${req.situation}
-- 기분: ${req.mood}
-- 음식: ${req.food.join(', ')}
-- 시간: ${req.time}
-- 예산: ${req.budget}
-- ${weatherLine}
+=== 자동 감지 정보 ===
+현재 시간: ${weekday}요일 ${hour}시 (${mealType})
+날씨: ${weatherDesc}, 기온 ${temp ?? '?'}°C ${weatherExtra}
+위치: 현재 위치 기준
 
-## 후보 식당 (5문항 필터 통과 + score 순)
-${candidateLines}
+=== 후보 식당 전체 목록 (${candidates.length}개) ===
+${candidateBlocks}
 
-위 후보 중 정확히 3곳을 골라 JSON만 출력하세요.
-반드시 후보 id(place_id)를 그대로 사용하세요.
-
-JSON 스키마:
-{
-  "greeting": "한 줄 인사 (이모지 1개 포함)",
-  "recommendation_reason": "2~3문장 추천 배경",
-  "weather_comment": "날씨 한 줄 코멘트 또는 null",
-  "picks": [
-    { "place_id": "카카오 id", "reason": "1~2문장", "tip": "팁 또는 null" }
-  ]
-}`
+위 정보를 종합해서 오늘 이 사람에게 가장 잘 맞는 식당 3곳을 직접 골라줘.
+반드시 JSON만 반환.`
 }
 
 function parseGeminiJson(text: string): GeminiOutput {
@@ -62,37 +151,80 @@ function parseGeminiJson(text: string): GeminiOutput {
   return JSON.parse(cleaned) as GeminiOutput
 }
 
+function normalizePick(
+  pick: Partial<GeminiPickDraft>,
+  fallback: EnrichedCandidate,
+  rank: number,
+): GeminiPickDraft {
+  return {
+    rank: pick.rank ?? rank,
+    place_id: String(pick.place_id ?? fallback.id),
+    name: pick.name ?? fallback.place_name,
+    category: pick.category ?? fallback.category_name,
+    reason: pick.reason ?? `${fallback.category_name}, 도보 ${fallback.walkMin}분 거리예요.`,
+    tip: pick.tip ?? null,
+    walk_min: pick.walk_min ?? fallback.walkMin,
+    mood_match_score: Math.min(100, Math.max(0, pick.mood_match_score ?? 80)),
+  }
+}
+
+function normalizeOutput(output: GeminiOutput, candidates: EnrichedCandidate[]): GeminiOutput {
+  const candidateMap = new Map(candidates.map((c) => [String(c.id), c]))
+
+  const picks = (output.picks ?? [])
+    .slice(0, 3)
+    .map((pick, index) => {
+      const fallback = candidateMap.get(String(pick.place_id)) ?? candidates[index] ?? candidates[0]
+      return normalizePick(pick, fallback, index + 1)
+    })
+
+  return {
+    greeting: output.greeting ?? '오늘 점심, 각 잡고 고르셨네요 🍽️',
+    recommendation_reason:
+      output.recommendation_reason ?? '문답·날씨·거리를 종합해 골랐어요.',
+    picks,
+    weather_comment: output.weather_comment ?? null,
+  }
+}
+
 export async function generateRecommendations(
   req: RecommendRequest,
-  candidates: ScoredPlace[],
+  candidates: EnrichedCandidate[],
   weather: WeatherInfo | null,
   apiKey: string,
 ): Promise<GeminiOutput> {
   const genAI = new GoogleGenerativeAI(apiKey)
   const model = genAI.getGenerativeModel({
     model: 'gemini-2.0-flash',
+    systemInstruction: SYSTEM_PROMPT,
     generationConfig: { responseMimeType: 'application/json' },
   })
 
-  const result = await model.generateContent(buildPrompt(req, candidates, weather))
+  const result = await model.generateContent(buildUserPrompt(req, candidates, weather))
   const text = result.response.text()
-  return parseGeminiJson(text)
+  return normalizeOutput(parseGeminiJson(text), candidates)
 }
 
 export function fallbackGeminiOutput(
   req: RecommendRequest,
-  candidates: ScoredPlace[],
+  candidates: EnrichedCandidate[],
   weather: WeatherInfo | null,
 ): GeminiOutput {
   const top3 = candidates.slice(0, 3)
+
   return {
-    greeting: `${req.mood.includes('스트레스') ? '스트레스' : '오늘'}엔 든든하게 🍽️`,
-    recommendation_reason: `${req.time} 조건에 맞춰 가까운 곳 위주로 골랐어요. ${req.budget} 예산도 고려했습니다.`,
+    greeting: `${req.mood.includes('스트레스') ? '스트레스' : '오늘'}도 각 잡고 먹자 🍽️`,
+    recommendation_reason: `${req.situation} · ${req.food.join(', ')} 조건에 맞춰 가까운 곳 위주로 골랐어요.`,
     weather_comment: weather ? `지금 ${Math.round(weather.temp)}°C — ${weather.description}` : null,
-    picks: top3.map((p) => ({
+    picks: top3.map((p, index) => ({
+      rank: index + 1,
       place_id: p.id,
-      reason: `${p.category_name} 카테고리, 도보 ${p.walkMin}분 거리예요.`,
+      name: p.place_name,
+      category: p.category_name,
+      reason: `${p.category_name}, 도보 ${p.walkMin}분 · 블로그 ${p.blogMentions}건${p.excellentBonus ? ' · 모범음식점' : ''}.`,
       tip: p.blogMentions > 100 ? '블로그 언급 많은 곳 — 웨이팅 있을 수 있어요.' : null,
+      walk_min: p.walkMin,
+      mood_match_score: Math.max(70, 92 - index * 8),
     })),
   }
 }
