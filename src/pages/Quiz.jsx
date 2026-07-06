@@ -24,11 +24,11 @@ const QUESTIONS = [
     sub: '추천 방향이 달라져요',
     multi: false,
     options: [
-      { emoji: '🎉', label: '기분 좋다', desc: '새로운 메뉴 도전', val: '기분좋음' },
-      { emoji: '😤', label: '스트레스', desc: '매운 것, 자극적인 것', val: '스트레스' },
-      { emoji: '😴', label: '피곤하다', desc: '따뜻하고 든든한 것', val: '피곤' },
-      { emoji: '😐', label: '평범하다', desc: '빠르고 익숙한 것', val: '평범' },
-      { emoji: '🤒', label: '몸이 안 좋다', desc: '소화 잘 되는 것', val: '몸안좋음' },
+      { emoji: '🎉', label: '기분 좋다', desc: '새로운 메뉴 도전', val: '기분좋음', half: true },
+      { emoji: '😤', label: '스트레스', desc: '매운·자극적인 것', val: '스트레스', half: true },
+      { emoji: '😴', label: '피곤하다', desc: '따뜻하고 든든한 것', val: '피곤', half: true },
+      { emoji: '😐', label: '평범하다', desc: '빠르고 익숙한 것', val: '평범', half: true },
+      { emoji: '🤒', label: '몸이 안 좋다', desc: '소화 잘 되는 것', val: '몸안좋음', half: true },
     ],
   },
   {
@@ -159,7 +159,7 @@ export default function Quiz() {
         <p className="mt-1 text-sm text-gray-400">{question.sub}</p>
       )}
 
-      <div className="mt-6 flex flex-wrap gap-3">
+      <div className={`mt-6 flex flex-wrap ${question.id === 'mood' ? 'gap-2' : 'gap-3'}`}>
         {question.options.map((option) => (
           <QuizCard
             key={option.val}
@@ -168,11 +168,12 @@ export default function Quiz() {
             onSelect={() => handleSelect(option)}
             half={option.half}
             third={option.third}
+            compact={question.id === 'mood'}
           />
         ))}
       </div>
 
-      <div className="mt-10 flex gap-3">
+      <div className={`flex gap-3 ${question.id === 'mood' ? 'mt-6' : 'mt-10'}`}>
         {step > 0 && (
           <button
             type="button"
