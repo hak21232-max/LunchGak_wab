@@ -1,4 +1,11 @@
 import { createContext, useCallback, useContext, useEffect, useState } from 'react'
+import {
+  clearSavedOffice,
+  loadLocationMode,
+  loadSavedOffice,
+  saveOfficeLocation,
+  setLocationMode,
+} from '../utils/savedOffice'
 
 const FALLBACK = { lat: 37.2636, lng: 127.0632 }
 
@@ -18,10 +25,23 @@ export function LocationProvider({ children }) {
   const [isFallback, setIsFallback] = useState(false)
   const [failReason, setFailReason] = useState(null)
   const [accuracy, setAccuracy] = useState(null)
+  const [locationSource, setLocationSource] = useState('gps')
+  const [savedOffice, setSavedOfficeState] = useState(() => loadSavedOffice())
 
-  const fetchLocation = useCallback(() => {
+  const applyOffice = useCallback((office) => {
+    setLat(office.lat)
+    setLng(office.lng)
+    setIsFallback(false)
+    setFailReason(null)
+    setAccuracy(null)
+    setLocationSource('office')
+    setLoading(false)
+  }, [])
+
+  const fetchGps = useCallback(() => {
     setLoading(true)
     setFailReason(null)
+    setLocationSource('gps')
 
     if (!navigator.geolocation) {
       setLat(FALLBACK.lat)
@@ -30,7 +50,7 @@ export function LocationProvider({ children }) {
       setFailReason('브라우저가 위치 서비스를 지원하지 않음')
       setAccuracy(null)
       setLoading(false)
-      return
+      return () => {}
     }
 
     let cancelled = false
@@ -81,17 +101,71 @@ export function LocationProvider({ children }) {
   }, [])
 
   useEffect(() => {
-    const cleanup = fetchLocation()
-    return cleanup
-  }, [fetchLocation])
+    const office = loadSavedOffice()
+    const mode = loadLocationMode() ?? (office ? 'office' : 'gps')
+    setSavedOfficeState(office)
+
+    if (mode === 'office' && office) {
+      applyOffice(office)
+      return undefined
+    }
+
+    return fetchGps()
+  }, [applyOffice, fetchGps])
 
   const retry = useCallback(() => {
-    fetchLocation()
-  }, [fetchLocation])
+    setLocationMode('gps')
+    fetchGps()
+  }, [fetchGps])
+
+  const saveCurrentAsOffice = useCallback(
+    (label = '회사') => {
+      if (lat == null || lng == null || isFallback) return null
+      const office = saveOfficeLocation(lat, lng, label)
+      setSavedOfficeState(office)
+      applyOffice(office)
+      return office
+    },
+    [lat, lng, isFallback, applyOffice],
+  )
+
+  const useOfficeLocation = useCallback(() => {
+    const office = loadSavedOffice()
+    if (!office) return
+    setLocationMode('office')
+    setSavedOfficeState(office)
+    applyOffice(office)
+  }, [applyOffice])
+
+  const useGpsLocation = useCallback(() => {
+    setLocationMode('gps')
+    fetchGps()
+  }, [fetchGps])
+
+  const clearOfficeLocation = useCallback(() => {
+    clearSavedOffice()
+    setSavedOfficeState(null)
+    setLocationMode('gps')
+    fetchGps()
+  }, [fetchGps])
 
   return (
     <LocationContext.Provider
-      value={{ lat, lng, loading, isFallback, failReason, accuracy, retry }}
+      value={{
+        lat,
+        lng,
+        loading,
+        isFallback,
+        failReason,
+        accuracy,
+        locationSource,
+        savedOffice,
+        saveCurrentAsOffice,
+        useOfficeLocation,
+        useGpsLocation,
+        clearOfficeLocation,
+        retry,
+      }}
     >
       {children}
     </LocationContext.Provider>

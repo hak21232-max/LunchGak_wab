@@ -1,38 +1,66 @@
+import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useQuiz } from '../context/QuizContext'
 import KakaoMap from '../components/KakaoMap'
+import LocationBar from '../components/LocationBar'
 import RestaurantCard from '../components/RestaurantCard'
 import useLocation from '../hooks/useLocation'
 import useRecommend from '../hooks/useRecommend'
-
 import { usePageMeta } from '../hooks/usePageMeta'
+import { shareRecommendResult } from '../utils/shareResult'
 
 export default function Result() {
   const navigate = useNavigate()
   const { answers, resetAnswers } = useQuiz()
   const { lat, lng, loading: locLoading } = useLocation()
   const { data, loading, error, retry } = useRecommend(answers, lat, lng)
-  usePageMeta({ title: '추천 결과', description: '런치각 맛집 추천 결과', path: '/result', noindex: true })
+  const [shareMsg, setShareMsg] = useState(null)
+
+  usePageMeta({
+    title: '추천 결과',
+    description: '런치각 맛집 추천 결과',
+    path: '/result',
+    noindex: true,
+  })
+
+  async function handleShare() {
+    if (!data) return
+    const result = await shareRecommendResult(data)
+    if (result.method === 'share') {
+      setShareMsg('공유했어요!')
+    } else if (result.method === 'clipboard') {
+      setShareMsg('클립보드에 복사했어요. 팀 채팅에 붙여넣기 하세요.')
+    } else if (result.method !== 'cancel') {
+      setShareMsg('공유에 실패했어요. 다시 시도해 주세요.')
+    }
+    if (result.ok) setTimeout(() => setShareMsg(null), 3000)
+  }
 
   if (locLoading || loading) {
     return (
-      <div className="mx-auto flex items-center justify-center bg-bg px-6 py-16">
-        <p className="text-sm text-gray-500">맛집 추천 중...</p>
+      <div className="bg-bg px-6 py-8">
+        <LocationBar compact />
+        <div className="flex items-center justify-center py-12">
+          <p className="text-sm text-gray-500">맛집 추천 중...</p>
+        </div>
       </div>
     )
   }
 
   if (error) {
     return (
-      <div className="mx-auto flex flex-col items-center justify-center gap-4 bg-bg px-6 py-16">
-        <p className="text-center text-sm text-gray-600">{error}</p>
-        <button
-          type="button"
-          onClick={retry}
-          className="min-h-[44px] rounded-xl bg-primary px-6 py-3 text-white"
-        >
-          다시 시도
-        </button>
+      <div className="bg-bg px-6 py-8">
+        <LocationBar />
+        <div className="flex flex-col items-center justify-center gap-4 py-12">
+          <p className="text-center text-sm text-gray-600">{error}</p>
+          <button
+            type="button"
+            onClick={retry}
+            className="min-h-[44px] rounded-xl bg-primary px-6 py-3 text-white"
+          >
+            다시 시도
+          </button>
+        </div>
       </div>
     )
   }
@@ -42,7 +70,8 @@ export default function Result() {
   if (data.nearby_no_match || data.picks.length === 0) {
     return (
       <div className="bg-bg px-6 py-8">
-        <p className="text-lg font-bold text-primary">{data.greeting}</p>
+        <LocationBar />
+        <p className="mt-4 text-lg font-bold text-primary">{data.greeting}</p>
         <p className="mt-2 text-sm text-gray-500">{data.recommendation_reason}</p>
         {data.weather_comment && (
           <p className="mt-3 text-xs text-gray-400">{data.weather_comment}</p>
@@ -72,6 +101,21 @@ export default function Result() {
 
   return (
     <div className="bg-bg px-6 py-8">
+      <LocationBar />
+
+      <div className="mt-4 flex gap-2">
+        <button
+          type="button"
+          onClick={handleShare}
+          className="min-h-[40px] flex-1 rounded-xl bg-accent px-4 py-2 text-sm font-medium text-white"
+        >
+          📤 결과 공유하기
+        </button>
+      </div>
+      {shareMsg && (
+        <p className="mt-2 text-center text-xs text-primary">{shareMsg}</p>
+      )}
+
       <KakaoMap picks={data.picks} userLat={lat} userLng={lng} />
 
       <p className="mt-4 text-lg font-bold text-primary">{data.greeting}</p>
@@ -79,7 +123,7 @@ export default function Result() {
 
       <div className="mt-6 flex flex-col gap-4">
         {data.picks.map((pick) => (
-          <RestaurantCard key={pick.place_id} pick={pick} />
+          <RestaurantCard key={pick.place_id} pick={pick} userLat={lat} userLng={lng} />
         ))}
       </div>
 

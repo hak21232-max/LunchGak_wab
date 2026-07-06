@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import QuizCard from '../components/QuizCard'
+import LocationBar from '../components/LocationBar'
 import { useQuiz } from '../context/QuizContext'
 import { usePageMeta } from '../hooks/usePageMeta'
 
@@ -123,6 +124,10 @@ export default function Quiz() {
 
   return (
     <div className="mx-auto bg-bg px-6 py-8">
+      <div className="mb-6">
+        <LocationBar />
+      </div>
+
       <div className="mb-6 flex items-center justify-between">
         <div className="flex gap-2">
           {QUESTIONS.map((_, i) => (

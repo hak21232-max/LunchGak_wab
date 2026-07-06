@@ -1,14 +1,28 @@
 import { getPickComment, shouldShowTip } from '../utils/pickReason'
+import { kakaoRouteUrl, naverWalkRouteUrl, openExternal } from '../utils/mapLinks'
 
 function openKakaoPlace(url) {
-  window.open(url, '_blank', 'noopener,noreferrer')
+  openExternal(url)
 }
 
-export default function RestaurantCard({ pick }) {
+function hasCoords(pick) {
+  return Number.isFinite(pick.lat) && Number.isFinite(pick.lng)
+}
+
+export default function RestaurantCard({ pick, userLat, userLng }) {
   const blogCount = pick.blog_count ?? 0
   const mapUrl = pick.place_url
   const comment = getPickComment(pick)
   const showTip = shouldShowTip(pick, comment)
+  const canNavigate = hasCoords(pick)
+
+  function handleKakaoRoute() {
+    openExternal(kakaoRouteUrl(userLat, userLng, pick.name, pick.lat, pick.lng))
+  }
+
+  function handleNaverRoute() {
+    openExternal(naverWalkRouteUrl(userLat, userLng, pick.name, pick.lat, pick.lng))
+  }
 
   return (
     <div className="rounded-2xl border border-gray-200 p-4">
@@ -49,6 +63,25 @@ export default function RestaurantCard({ pick }) {
           )}
         </li>
       </ul>
+
+      {canNavigate && (
+        <div className="mt-3 flex gap-2">
+          <button
+            type="button"
+            onClick={handleKakaoRoute}
+            className="min-h-[36px] flex-1 rounded-lg bg-primary py-2 text-xs font-medium text-white"
+          >
+            🚶 카카오 길찾기
+          </button>
+          <button
+            type="button"
+            onClick={handleNaverRoute}
+            className="min-h-[36px] flex-1 rounded-lg border border-gray-200 py-2 text-xs font-medium text-gray-700"
+          >
+            네이버 길찾기
+          </button>
+        </div>
+      )}
 
       <div className="mt-3 rounded-xl bg-primary/5 px-3 py-2.5">
         <p className="text-xs font-medium text-primary/70">각이의 한마디</p>
