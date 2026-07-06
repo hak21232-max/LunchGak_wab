@@ -7,7 +7,6 @@ import RestaurantCard from '../components/RestaurantCard'
 import useLocation from '../hooks/useLocation'
 import useRecommend from '../hooks/useRecommend'
 import { usePageMeta } from '../hooks/usePageMeta'
-import { shareToKakaoTalk } from '../utils/kakaoShare'
 import { shareRecommendResult } from '../utils/shareResult'
 
 export default function Result() {
@@ -31,34 +30,15 @@ export default function Result() {
     try {
       const result = await shareRecommendResult(data, { lat, lng })
       if (result.method === 'share') {
-        setShareMsg('공유 링크를 보냈어요!')
+        setShareMsg('공유했어요!')
       } else if (result.method === 'clipboard') {
-        setShareMsg('공유 링크를 복사했어요. 팀 채팅에 붙여넣기 하세요.')
+        setShareMsg('클립보드에 복사했어요. 팀 채팅에 붙여넣기 하세요.')
       } else if (result.method !== 'cancel') {
         setShareMsg('공유에 실패했어요. 다시 시도해 주세요.')
       }
       if (result.ok) setTimeout(() => setShareMsg(null), 3000)
-    } catch (err) {
-      setShareMsg(err.message ?? '공유 링크 생성에 실패했어요.')
-      setTimeout(() => setShareMsg(null), 4000)
-    } finally {
-      setSharing(false)
-    }
-  }
-
-  async function handleKakaoShare() {
-    if (!data || sharing) return
-    setSharing(true)
-    try {
-      await shareToKakaoTalk(data, { lat, lng })
-      setShareMsg('카카오톡 공유 창을 열었어요!')
-      setTimeout(() => setShareMsg(null), 3000)
-    } catch (err) {
-      if (err?.message === 'NO_KEY') {
-        setShareMsg('카카오 공유 설정이 필요해요. (VITE_KAKAO_JS_KEY)')
-      } else {
-        setShareMsg(err.message ?? '카카오톡 공유에 실패했어요. 다시 시도해 주세요.')
-      }
+    } catch {
+      setShareMsg('공유 링크를 만들지 못했어요. 다시 시도해 주세요.')
       setTimeout(() => setShareMsg(null), 4000)
     } finally {
       setSharing(false)
@@ -132,22 +112,14 @@ export default function Result() {
     <div className="bg-bg px-6 py-8">
       <LocationSummary />
 
-      <div className="mt-4 flex gap-2">
+      <div className="mt-4">
         <button
           type="button"
           onClick={handleShare}
           disabled={sharing}
-          className="min-h-[40px] flex-1 rounded-xl bg-accent px-4 py-2 text-sm font-medium text-white disabled:opacity-60"
+          className="min-h-[44px] w-full rounded-xl bg-accent px-4 py-2 text-sm font-semibold text-white disabled:opacity-60"
         >
-          {sharing ? '링크 만드는 중…' : '📤 공유하기'}
-        </button>
-        <button
-          type="button"
-          onClick={handleKakaoShare}
-          disabled={sharing}
-          className="min-h-[40px] flex-1 rounded-xl bg-[#FEE500] px-4 py-2 text-sm font-medium text-[#191919] disabled:opacity-60"
-        >
-          💬 카카오톡
+          {sharing ? '공유 준비 중…' : '📤 결과 공유하기'}
         </button>
       </div>
       {shareMsg && (

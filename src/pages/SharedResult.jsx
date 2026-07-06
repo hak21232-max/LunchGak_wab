@@ -1,13 +1,15 @@
 import { useEffect, useState } from 'react'
-import { Link, useParams } from 'react-router-dom'
+import { Link, useParams, useSearchParams } from 'react-router-dom'
 import KakaoMap from '../components/KakaoMap'
 import RestaurantCard from '../components/RestaurantCard'
 import { usePageMeta } from '../hooks/usePageMeta'
 import { normalizeRecommendResponse } from '../utils/normalizePick'
-import { fetchSharedResult } from '../utils/shareResult'
+import { resolveSharedResult } from '../utils/shareResult'
 
 export default function SharedResult() {
   const { id } = useParams()
+  const [searchParams] = useSearchParams()
+  const encoded = searchParams.get('d')
   const [data, setData] = useState(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
@@ -20,7 +22,7 @@ export default function SharedResult() {
   })
 
   useEffect(() => {
-    if (!id) {
+    if (!id && !encoded) {
       setError('공유 링크가 올바르지 않아요.')
       setLoading(false)
       return
@@ -32,7 +34,7 @@ export default function SharedResult() {
       setLoading(true)
       setError(null)
       try {
-        const json = await fetchSharedResult(id)
+        const json = await resolveSharedResult(id, encoded)
         if (!cancelled) setData(normalizeRecommendResponse(json))
       } catch (err) {
         if (!cancelled) {
@@ -48,7 +50,7 @@ export default function SharedResult() {
     return () => {
       cancelled = true
     }
-  }, [id])
+  }, [id, encoded])
 
   if (loading) {
     return (
@@ -75,7 +77,7 @@ export default function SharedResult() {
 
   return (
     <div className="bg-bg px-6 py-8">
-      <p className="text-center text-[11px] text-gray-400">친구가 공유한 런치각 추천 · 7일간 보관</p>
+      <p className="text-center text-[11px] text-gray-400">친구가 공유한 런치각 추천</p>
 
       <KakaoMap picks={data.picks} userLat={data.lat} userLng={data.lng} />
 

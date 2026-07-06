@@ -35,6 +35,7 @@ export default function App() {
               <Route path="/location" element={<LocationSelect />} />
               <Route path="/quiz" element={<Quiz />} />
               <Route path="/result" element={<Result />} />
+              <Route path="/share" element={<SharedResult />} />
               <Route path="/share/:id" element={<SharedResult />} />
               <Route path="/about" element={<About />} />
               <Route path="/privacy" element={<Privacy />} />
