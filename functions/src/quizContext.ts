@@ -1,60 +1,194 @@
 import type { EnrichedCandidate, RecommendRequest } from './types'
 
-/** 음식 선호 + 카테고리 → 해당 식당에서 추정 가능한 메뉴/특징 */
-const FOOD_MENU_BY_CATEGORY: Record<string, Record<string, string>> = {
-  '얼큰하고 자극적인 음식': {
-    한식: '김치찌개·제육볶음·순대국',
-    중식: '마라탕·짬뽕·마파두부',
-    분식: '떡볶이·라볶이',
-    일식: '매운 라멘·나가사키 짬뽕',
-    아시안: '쌀국수 맵게·똠얌꿍',
-    default: '얼큰한 찌개·볶음류',
-  },
-  '따뜻하고 든든한 국물 음식': {
-    한식: '국밥·설렁탕·갈비탕',
-    중식: '우육면·짬뽕 국물',
-    일식: '우동·라멘',
-    default: '따끈한 국물 메뉴',
-  },
-  '가볍고 깔끔한 음식': {
-    한식: '비빔밥·쌈밥·정식',
-    일식: '초밥·회·우동',
-    양식: '샐러드·수프',
-    default: '담백한 한 끼',
-  },
-  '고기류(삼겹살·갈비·스테이크 등)': {
-    한식: '삼겹살·갈비·불고기',
-    양식: '스테이크·립',
-    default: '고기 구이·정육',
-  },
-  '면 요리(라멘·칼국수·파스타 등)': {
-    한식: '칼국수·냉면',
-    중식: '짜장면·짬뽕',
-    일식: '라멘·우동',
-    양식: '파스타',
-    default: '면 요리',
-  },
-}
-
 const MOOD_PHRASES: Record<string, string> = {
-  스트레스: '스트레스 풀기엔 속 시원한',
+  스트레스: '스트레스 풀기엔 든든한',
   피곤: '피곤할 때 든든하게 채울',
   기분좋음: '기분 좋을 때 가볍게 즐길',
   평범: '평범한 점심에 무난한',
   몸안좋음: '몸 상태 안 좋을 때 부담 없는',
 }
 
-function detectCategoryKey(categoryName: string): string {
-  const keys = ['한식', '중식', '일식', '양식', '분식', '아시안', '고기', '국밥', '면']
-  for (const key of keys) {
-    if (categoryName.includes(key)) return key
+/** 카카오 category_name에서 실제 취급 메뉴 추출 */
+export function extractSpecialties(categoryName: string): string[] {
+  const found = new Set<string>()
+  const text = categoryName.replace(/\s/g, '')
+
+  const rules: Array<[RegExp, string]> = [
+    [/돈까스|돈카츠|카츠(?!u)/, '돈까스'],
+    [/우동/, '우동'],
+    [/라멘|라면(?!면)/, '라멘'],
+    [/초밥|스시|회/, '초밥·회'],
+    [/국밥|곰탕|설렁탕|갈비탕/, '국밥·탕'],
+    [/국수|칼국수|냉면/, '국수·면'],
+    [/삼겹|고기|갈비|구이|숯불|연탄|족발|보쌈/, '고기·구이'],
+    [/찌개|전골|탕(?!후)/, '찌개·전골'],
+    [/분식|떡볶|김밥/, '분식'],
+    [/짬뽕|짜장|중식/, '중식면'],
+    [/파스타|스테이크|양식/, '양식'],
+    [/치킨|피자|햄버거/, '패스트푸드'],
+    [/카페|커피|브런치/, '카페·브런치'],
+  ]
+
+  for (const [pattern, label] of rules) {
+    if (pattern.test(text)) found.add(label)
   }
-  return 'default'
+
+  // "돈까스,우동" 같이 쉼표 구분 세부 카테고리 파싱
+  const parts = categoryName.split('>').map((p) => p.trim())
+  for (const part of parts) {
+    for (const token of part.split(/[,·/]/)) {
+      const t = token.trim()
+      if (/돈까스|카츠/.test(t)) found.add('돈까스')
+      if (/우동/.test(t)) found.add('우동')
+      if (/라멘|라면/.test(t)) found.add('라멘')
+      if (/초밥|회/.test(t)) found.add('초밥·회')
+      if (/국밥/.test(t)) found.add('국밥·탕')
+      if (/칼국수|냉면/.test(t)) found.add('국수·면')
+    }
+  }
+
+  return [...found]
+}
+
+function primaryCuisine(categoryName: string): string {
+  if (/한식/.test(categoryName)) return '한식'
+  if (/일식/.test(categoryName)) return '일식'
+  if (/중식/.test(categoryName)) return '중식'
+  if (/양식/.test(categoryName)) return '양식'
+  if (/분식/.test(categoryName)) return '분식'
+  return '음식'
+}
+
+/** 카테고리에 실제 있는 메뉴만 반환 (없는 메뉴 추측 금지) */
+export function inferMenuHint(req: RecommendRequest, candidate: EnrichedCandidate): string {
+  const specialties = extractSpecialties(candidate.category_name)
+  const pref = req.food.find((f) => !f.includes('자유')) ?? req.food[0] ?? ''
+
+  if (specialties.length > 0) {
+    return menuHintFromSpecialties(specialties, pref)
+  }
+
+  // 세부 카테고리 없을 때만 cuisine 수준 (보수적)
+  const cuisine = primaryCuisine(candidate.category_name)
+  return menuHintFromCuisine(cuisine, pref, candidate.category_name)
+}
+
+function menuHintFromSpecialties(specialties: string[], pref: string): string {
+  const has = (key: string) => specialties.some((s) => s.includes(key) || key.includes(s.split('·')[0]))
+
+  if (pref.includes('얼큰') || pref.includes('자극')) {
+    if (has('돈까스') && has('우동')) return '바삭한 돈까스·따끈한 우동'
+    if (has('돈까스')) return '바삭한 돈까스'
+    if (has('우동')) return '따끈한 우동'
+    if (has('라멘')) return '매운 라멘'
+    if (has('국밥')) return '얼큰한 국밥·찌개'
+    if (has('찌개')) return '얼큰한 찌개·전골'
+    if (has('분식')) return '매운 떡볶이·라볶이'
+    if (has('중식')) return '마라탕·짬뽕'
+    if (has('고기')) return '매콤한 고기·양념 구이'
+    return specialties.join('·')
+  }
+
+  if (pref.includes('국물')) {
+    if (has('우동')) return '따끈한 우동'
+    if (has('라멘')) return '국물 라멘'
+    if (has('국밥')) return '국밥·탕'
+    if (has('찌개')) return '찌개·전골'
+    if (has('중식')) return '짬뽕·우육면'
+    if (has('국수')) return '칼국수·국수'
+    return specialties.join('·')
+  }
+
+  if (pref.includes('가벼')) {
+    if (has('초밥')) return '초밥·회'
+    if (has('우동')) return '담백한 우동'
+    if (has('돈까스')) return '로스카츠·정식'
+    return specialties.join('·')
+  }
+
+  if (pref.includes('고기')) {
+    if (has('고기')) return '구이·삼겹·갈비'
+    if (has('돈까스')) return '돈까스·정육'
+    return specialties.join('·')
+  }
+
+  if (pref.includes('면')) {
+    if (has('우동')) return '우동'
+    if (has('라멘')) return '라멘'
+    if (has('국수')) return '칼국수·냉면'
+    if (has('중식')) return '짜장·짬뽕'
+    return specialties.join('·')
+  }
+
+  return specialties.join('·')
+}
+
+function menuHintFromCuisine(cuisine: string, pref: string, categoryName: string): string {
+  const tail = categoryName.split('>').pop()?.trim() ?? cuisine
+  if (pref.includes('자유')) return `${tail} 대표 메뉴`
+
+  const conservative: Record<string, Record<string, string>> = {
+    한식: {
+      얼큰: '찌개·볶음·국밥',
+      국물: '국밥·탕',
+      default: '한식 정식',
+    },
+    일식: {
+      default: '일식 대표 메뉴',
+    },
+    중식: {
+      얼큰: '짬뽕·마라',
+      default: '중식',
+    },
+  }
+
+  const map = conservative[cuisine] ?? { default: tail }
+  if (pref.includes('얼큰')) return map.얼큰 ?? map.default
+  if (pref.includes('국물')) return map.국물 ?? map.default
+  return map.default
+}
+
+/** reason에 카테고리와 맞지 않는 메뉴가 언급됐는지 */
+export function reasonMentionsInvalidMenu(reason: string, categoryName: string): boolean {
+  const specialties = extractSpecialties(categoryName)
+  const cat = categoryName.replace(/\s/g, '')
+
+  const forbiddenIfMissing = [
+    { terms: ['라멘', '라면'], need: /라멘|라면/ },
+    { terms: ['짬뽕', '나가사키', '마라탕', '마라'], need: /짬뽕|마라|중식|분식/ },
+    { terms: ['돈까스', '카츠', '로스카츠'], need: /돈까스|카츠/ },
+    { terms: ['우동'], need: /우동/ },
+    { terms: ['초밥', '스시', '회덮'], need: /초밥|스시|회/ },
+    { terms: ['삼겹', '갈비', '스테이크'], need: /삼겹|고기|갈비|구이|양식|숯불/ },
+    { terms: ['파스타'], need: /파스타|양식/ },
+    { terms: ['떡볶'], need: /떡볶|분식/ },
+    { terms: ['김치찌개', '제육', '순대'], need: /한식|찌개|국밥|분식/ },
+  ]
+
+  for (const { terms, need } of forbiddenIfMissing) {
+    const mentioned = terms.some((t) => reason.includes(t))
+    if (mentioned && !need.test(cat) && specialties.every((s) => !terms.some((t) => s.includes(t)))) {
+      return true
+    }
+  }
+
+  return false
+}
+
+export function formatAllowedMenus(categoryName: string): string {
+  const specialties = extractSpecialties(categoryName)
+  if (specialties.length > 0) return specialties.join('·')
+  return shortCategoryLabel(categoryName)
+}
+
+function shortCategoryLabel(categoryName: string): string {
+  const parts = categoryName.split('>').map((p) => p.trim()).filter(Boolean)
+  return parts.slice(1).join(' > ') || parts[0] || '음식'
 }
 
 function shortMood(mood: string): string {
   for (const [key, phrase] of Object.entries(MOOD_PHRASES)) {
-    if ( mood.includes(key)) return phrase
+    if (mood.includes(key)) return phrase
   }
   return '오늘 컨디션에 맞는'
 }
@@ -73,23 +207,19 @@ function shortTime(time: string): string {
   return ''
 }
 
-/** 식당 카테고리 + 사용자 음식 선호 → 추정 메뉴 문구 */
-export function inferMenuHint(req: RecommendRequest, candidate: EnrichedCandidate): string {
-  const catKey = detectCategoryKey(candidate.category_name)
+/** 문답 음식과 식당 메뉴가 직접 맞지 않을 때 솔직한 연결 문구 */
+function foodConnectionPhrase(req: RecommendRequest, candidate: EnrichedCandidate): string {
+  const menu = inferMenuHint(req, candidate)
+  const pref = req.food[0] ?? ''
+  const specialties = extractSpecialties(candidate.category_name)
 
-  for (const pref of req.food) {
-    if (pref.includes('자유')) {
-      const cat = candidate.category_name.split('>').pop()?.trim() ?? '메뉴'
-      return `${cat} 대표 메뉴`
-    }
-
-    const menuMap = FOOD_MENU_BY_CATEGORY[pref]
-    if (menuMap) {
-      return menuMap[catKey] ?? menuMap.default ?? pref.replace(/\(.*\)/, '').trim()
-    }
+  if (pref.includes('얼큰') && specialties.some((s) => s.includes('돈까스') || s.includes('우동'))) {
+    return `매운 거보다 ${menu} 든든한 한 끼로`
   }
-
-  return req.food[0]?.replace(/\(.*\)/, '').trim() ?? '한 끼'
+  if (pref.includes('얼큰') && !specialties.some((s) => /찌개|분식|중식|국밥/.test(s))) {
+    return `${menu}로 속 든든하게`
+  }
+  return `${menu} 땡길 때`
 }
 
 export function buildQuizSummary(req: RecommendRequest): string {
@@ -102,63 +232,62 @@ export function buildQuizSummary(req: RecommendRequest): string {
   ].join(' | ')
 }
 
-function foodKeywordsFromReq(req: RecommendRequest): string[] {
-  return req.food.flatMap((f) => {
-    if (f.includes('얼큰') || f.includes('자극')) {
-      return ['매운', '얼큰', '자극', '찌개', '볶음', '마라', '짬뽕', '떡볶', '제육', '김치']
-    }
-    if (f.includes('국물')) return ['국물', '국밥', '탕', '찌개', '우동', '라멘', '곰탕', '설렁탕']
-    if (f.includes('가벼')) return ['가볍', '담백', '비빔', '샐러드', '초밥', '회']
-    if (f.includes('고기')) return ['고기', '삼겹', '갈비', '구이', '스테이크', '숯불', '연탄']
-    if (f.includes('면')) return ['면', '라멘', '칼국수', '파스타', '짜장', '우동']
-    if (f.includes('자유')) return ['메뉴', '한 끼']
-    return [f.replace(/\(.*\)/, '').trim().slice(0, 4)]
+function foodKeywordsFromReq(req: RecommendRequest, candidate?: EnrichedCandidate): string[] {
+  const fromBlog = candidate?.blogMenuMentions ?? []
+  const fromMenu = candidate ? inferMenuHint(req, candidate).split(/[··,·]/).map((s) => s.trim()) : []
+  const fromPref = req.food.flatMap((f) => {
+    if (f.includes('얼큰') || f.includes('자극')) return ['매운', '얼큰', '자극', '든든']
+    if (f.includes('국물')) return ['국물', '따끈', '우동']
+    if (f.includes('가벼')) return ['가볍', '담백']
+    if (f.includes('고기')) return ['고기', '구이', '돈까스']
+    if (f.includes('면')) return ['면', '우동', '라멘']
+    return []
   })
+  return [...fromBlog, ...fromMenu, ...fromPref].filter((k) => k.length >= 2)
 }
 
-/** reason에 5문답 연결 여부 (음식·자리·기분 중 2개 이상) */
-export function reasonLinksToQuiz(reason: string, req: RecommendRequest): boolean {
+export function reasonLinksToQuiz(
+  reason: string,
+  req: RecommendRequest,
+  candidate?: EnrichedCandidate,
+): boolean {
   let hits = 0
 
   if (req.situation && reason.includes(req.situation)) hits += 1
   if (req.situation === '혼밥' && /혼밥|혼자|1인/.test(reason)) hits += 1
-  if (req.situation === '회식' && /회식|단체|술/.test(reason)) hits += 1
-  if (req.situation === '팀점심' && /팀|동료|함께/.test(reason)) hits += 1
 
   for (const key of Object.keys(MOOD_PHRASES)) {
-    if (req.mood.includes(key) && reason.includes(key)) {
-      hits += 1
-      break
-    }
+    if (req.mood.includes(key) && reason.includes(key)) hits += 1
   }
 
-  const foodKeywords = foodKeywordsFromReq(req)
-  if (foodKeywords.some((kw) => kw.length >= 2 && reason.includes(kw))) hits += 1
+  const foodKeywords = foodKeywordsFromReq(req, candidate)
+  if (foodKeywords.some((kw) => reason.includes(kw))) hits += 1
 
   if (req.time.includes('30분') && /30분|점심|빠르|가까/.test(reason)) hits += 1
-  if (req.budget.includes('1만') && /1만|가성비|저렴|부담/.test(reason)) hits += 1
 
   return hits >= 2
 }
 
-/** 5문답 + 식당 특징을 묶은 reason (fallback·보강용) */
 export function buildQuizLinkedReason(
   req: RecommendRequest,
   candidate: EnrichedCandidate,
   rank: number,
 ): string {
-  const menu = inferMenuHint(req, candidate)
+  const blogMenus = candidate.blogMenuMentions.slice(0, 3).join('·')
+  const menu = blogMenus || inferMenuHint(req, candidate)
+  const connection = foodConnectionPhrase(req, candidate)
   const mood = shortMood(req.mood)
   const time = shortTime(req.time)
   const budget = shortBudget(req.budget)
-  const cat = candidate.category_name.split('>').pop()?.trim() ?? '음식'
+  const shopType = formatAllowedMenus(candidate.category_name)
   const kw = candidate.blogTopKeywords.slice(0, 2).join('·')
 
   const templates = [
-    `${req.situation}에 ${menu} 땡길 때 — ${candidate.place_name} ${cat}집에서 ${mood} 한 끼로 딱이에요.${time ? ` ${time} 다녀오기 좋고` : ''}${budget ? ` ${budget} 가능해요.` : '.'}`,
-    `${req.mood.includes('스트레스') ? '스트레스 받는 날' : '오늘'} ${req.food.join(', ')} 원하셨잖아요. ${candidate.place_name}은 ${menu} 쪽으로 후기 많은 ${cat}집이에요.${kw ? ` 블로그에 '${kw}' 언급도 있고요.` : ''}`,
-    `${candidate.place_name} — ${req.situation}하기 좋은 ${cat}집인데, ${menu} 메뉴가 ${req.food[0]?.includes('얼큰') ? '얼큰한 편' : '문답 조건'}이랑 잘 맞아요. 도보 ${candidate.walkMin}분.${rank === 1 ? ' 1순위 pick!' : ''}`,
-    `${menu} 찾으셨는데 ${candidate.place_name}이 ${cat}계에서 ${mood} 선택이에요. ${req.situation}${req.budget.includes('1만') ? ', 1만원대' : ''} 조건까지 챙겼어요.`,
+    blogMenus
+      ? `${req.situation}에 ${req.food[0]?.includes('얼큰') ? '매운' : ''} ${blogMenus} — ${candidate.place_name}, 블로그 후기에서 확인된 메뉴예요.${time ? ` ${time} OK` : ''}`
+      : `${req.situation}에 ${connection} — ${candidate.place_name}은 ${shopType}인데 ${mood} 한 끼로 괜찮아요.${time ? ` ${time} 다녀오기 좋고` : ''}${budget ? ` ${budget} 가능해요.` : '.'}`,
+    `${req.mood.includes('스트레스') ? '스트레스 받는 날' : '오늘'} ${menu}로 해결하기 좋은 ${candidate.place_name}.${blogMenus ? ` 블로그에 ${blogMenus} 언급 있어요.` : ''}${kw ? ` '${kw}' 후기도 있고요.` : ''}`,
+    `${candidate.place_name} — ${req.situation}하기 좋고, ${menu} 중심. 도보 ${candidate.walkMin}분.${rank === 1 ? ' 1순위!' : ''}`,
   ]
 
   return templates[(rank - 1) % templates.length]

@@ -1,6 +1,9 @@
-import { estimateWalkMin, parseRadiusMeters, searchNearbyRestaurants } from './kakao'
+import { filterByKakaoCategory } from './categoryFilter'
+import { filterValidatedCandidates, validateGeminiPicks } from './foodValidation'
+import { estimateWalkMin, parseRadiusMeters, searchRestaurantsForQuiz } from './kakao'
 import { computeReputationScore, enrichWithBlogData, type BlogStats } from './naver'
 import { applyExcellentRestaurantBonus } from './publicdata'
+import { buildQuizSearchQueries, resolveFoodVibe } from './quizSearch'
 import { fetchWeather, buildWeatherComment } from './weather'
 import { fallbackGeminiOutput, generateRecommendations } from './gemini'
 import type {
@@ -11,7 +14,6 @@ import type {
   RecommendResponse,
 } from './types'
 
-const KAKAO_FETCH_LIMIT = 30
 const GEMINI_CANDIDATE_LIMIT = 15
 
 interface PipelineSecrets {
@@ -42,6 +44,8 @@ function buildEnrichedCandidates(
       negativeCount: 0,
       positiveRatio: 0.5,
       topKeywords: [],
+      menuMentions: [],
+      blogSnippets: [],
     }
 
     return {
@@ -52,6 +56,8 @@ function buildEnrichedCandidates(
       blogNegativeCount: stats.negativeCount,
       blogPositiveRatio: stats.positiveRatio,
       blogTopKeywords: stats.topKeywords,
+      blogMenuMentions: stats.menuMentions,
+      blogSnippets: stats.blogSnippets,
       reputationScore: computeReputationScore(stats, walkMin, excellentBonus),
       isExemplary: excellentBonus,
       excellentBonus,
@@ -59,7 +65,6 @@ function buildEnrichedCandidates(
   })
 }
 
-/** 평판 점수 우선, 동점이면 거리순으로 Gemini 후보 15곳 선별 */
 function selectCandidatesForGemini(candidates: EnrichedCandidate[]): EnrichedCandidate[] {
   return [...candidates]
     .sort((a, b) => {
@@ -73,7 +78,8 @@ function selectCandidatesForGemini(candidates: EnrichedCandidate[]): EnrichedCan
 function resolveCandidate(
   pick: { place_id: string; name: string; rank: number },
   candidates: EnrichedCandidate[],
-): EnrichedCandidate | undefined {
+  index = 0,
+): EnrichedCandidate {
   const byId = candidates.find((c) => String(c.id) === String(pick.place_id))
   if (byId) return byId
 
@@ -81,15 +87,15 @@ function resolveCandidate(
   if (byName) return byName
 
   const normalized = pick.name?.replace(/\s/g, '')
-  const byPartialName = candidates.find(
+  const byPartial = candidates.find(
     (c) =>
       c.place_name.replace(/\s/g, '') === normalized ||
       c.place_name.includes(pick.name) ||
       pick.name.includes(c.place_name),
   )
-  if (byPartialName) return byPartialName
+  if (byPartial) return byPartial
 
-  return candidates[pick.rank - 1]
+  return candidates[index] ?? candidates[pick.rank - 1] ?? candidates[0]
 }
 
 function toCoord(value: string | undefined): number {
@@ -97,24 +103,44 @@ function toCoord(value: string | undefined): number {
   return Number.isFinite(n) ? n : NaN
 }
 
-function buildResponse(
+function buildNoMatchResponse(
   req: RecommendRequest,
-  candidates: EnrichedCandidate[],
-  gemini: ReturnType<typeof fallbackGeminiOutput>,
   weatherComment: string | null,
 ): RecommendResponse {
-  const picks: PickResult[] = gemini.picks.slice(0, 3).map((pick) => {
-    const place = resolveCandidate(pick, candidates)
+  return {
+    greeting: '근처에 딱 맞는 맛집이 없네요 😅',
+    recommendation_reason: `'${resolveFoodVibe(req)}' 조건에 맞는 식당을 찾지 못했어요. 반경을 넓히거나 다른 메뉴를 선택해 보세요.`,
+    picks: [],
+    weather_comment: weatherComment,
+    nearby_no_match: true,
+  }
+}
+
+function buildResponse(
+  candidates: EnrichedCandidate[],
+  gemini: { greeting: string; recommendation_reason: string; picks: PickResult[] | unknown[]; weather_comment: string | null },
+  weatherComment: string | null,
+  nearbyNoMatch: boolean,
+): RecommendResponse {
+  const picks: PickResult[] = (gemini.picks as Array<Record<string, unknown>>).map((pick) => {
+    const place = resolveCandidate(
+      {
+        place_id: String(pick.place_id),
+        name: String(pick.name),
+        rank: Number(pick.rank),
+      },
+      candidates,
+    )
 
     return {
-      rank: pick.rank,
-      place_id: place?.id ?? pick.place_id,
-      name: pick.name || place?.place_name || '추천 식당',
-      category: pick.category || place?.category_name || '',
-      reason: pick.reason,
-      tip: pick.tip,
-      walk_min: pick.walk_min ?? place?.walkMin ?? 5,
-      mood_match_score: pick.mood_match_score,
+      rank: Number(pick.rank),
+      place_id: place?.id ?? String(pick.place_id),
+      name: String(pick.name || place?.place_name || '추천 식당'),
+      category: String(pick.category || place?.category_name || ''),
+      reason: String(pick.reason ?? ''),
+      tip: (pick.tip as string | null) ?? null,
+      walk_min: Number(pick.walk_min ?? place?.walkMin ?? 5),
+      mood_match_score: Number(pick.mood_match_score ?? 80),
       place_url: place?.place_url ?? '',
       blog_count: place?.blogMentions ?? 0,
       is_exemplary: place?.isExemplary ?? false,
@@ -128,6 +154,7 @@ function buildResponse(
     recommendation_reason: gemini.recommendation_reason,
     picks,
     weather_comment: gemini.weather_comment ?? weatherComment,
+    nearby_no_match: nearbyNoMatch,
   }
 }
 
@@ -140,27 +167,46 @@ export async function runRecommendationPipeline(
   const weather = await fetchWeather(req.lat, req.lng, secrets.openWeatherApiKey)
   const weatherComment = buildWeatherComment(weather)
 
-  const places = await searchNearbyRestaurants(
+  const searchQueries = buildQuizSearchQueries(req)
+  const rawPlaces = await searchRestaurantsForQuiz(
     req.lat,
     req.lng,
     radius,
     secrets.kakaoRestApiKey,
-    KAKAO_FETCH_LIMIT,
+    searchQueries,
+    40,
   )
 
-  if (places.length === 0) {
-    throw new Error('주변에 음식점이 없어요.')
+  if (rawPlaces.length === 0) {
+    return buildNoMatchResponse(req, weatherComment)
   }
 
-  const { blogStats } = await enrichWithBlogData(places, secrets.naverClientId, secrets.naverClientSecret)
+  const categoryFiltered = filterByKakaoCategory(rawPlaces, req)
+  if (categoryFiltered.length === 0) {
+    return buildNoMatchResponse(req, weatherComment)
+  }
+
+  const targetPlaces = categoryFiltered.slice(0, 30)
+
+  const { blogStats } = await enrichWithBlogData(
+    targetPlaces,
+    secrets.naverClientId,
+    secrets.naverClientSecret,
+  )
 
   const placesWithBonus = await applyExcellentRestaurantBonus(
-    places,
+    targetPlaces,
     secrets.dataGoKrServiceKey,
   )
 
-  const allCandidates = buildEnrichedCandidates(places, blogStats, placesWithBonus)
-  const candidates = selectCandidatesForGemini(allCandidates)
+  const allCandidates = buildEnrichedCandidates(targetPlaces, blogStats, placesWithBonus)
+
+  const validatedPool = filterValidatedCandidates(allCandidates, req)
+  if (validatedPool.length === 0) {
+    return buildNoMatchResponse(req, weatherComment)
+  }
+
+  const candidates = selectCandidatesForGemini(validatedPool)
 
   let geminiOutput
   try {
@@ -169,7 +215,18 @@ export async function runRecommendationPipeline(
     geminiOutput = fallbackGeminiOutput(req, candidates, weather)
   }
 
-  return buildResponse(req, allCandidates, geminiOutput, weatherComment)
+  const { output: validatedOutput, nearby_no_match } = validateGeminiPicks(
+    geminiOutput,
+    allCandidates,
+    req,
+    resolveCandidate,
+  )
+
+  if (nearby_no_match) {
+    return buildNoMatchResponse(req, weatherComment)
+  }
+
+  return buildResponse(allCandidates, validatedOutput, weatherComment, false)
 }
 
 export function validateRecommendRequest(body: unknown): RecommendRequest {

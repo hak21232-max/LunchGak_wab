@@ -27,6 +27,8 @@ export interface EnrichedCandidate extends KakaoPlace {
   blogNegativeCount: number
   blogPositiveRatio: number
   blogTopKeywords: string[]
+  blogMenuMentions: string[]
+  blogSnippets: string[]
   reputationScore: number
   isExemplary: boolean
   excellentBonus: boolean
@@ -59,6 +61,7 @@ export interface RecommendResponse {
   recommendation_reason: string
   picks: PickResult[]
   weather_comment: string | null
+  nearby_no_match?: boolean
 }
 
 export interface GeminiPickDraft {

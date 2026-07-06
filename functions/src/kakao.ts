@@ -192,6 +192,90 @@ export async function searchNearbyRestaurants(
   return results
 }
 
+/** 키워드 검색 — 문답 음식 조건에 맞는 식당 추가 수집 */
+export async function searchNearbyByKeyword(
+  lat: number,
+  lng: number,
+  radius: number,
+  query: string,
+  apiKey: string,
+  maxResults = 15,
+): Promise<KakaoPlace[]> {
+  const seen = new Set<string>()
+  const results: KakaoPlace[] = []
+
+  for (let page = 1; page <= 2; page++) {
+    const url = new URL('https://dapi.kakao.com/v2/local/search/keyword.json')
+    url.searchParams.set('query', query)
+    url.searchParams.set('x', String(lng))
+    url.searchParams.set('y', String(lat))
+    url.searchParams.set('radius', String(radius))
+    url.searchParams.set('sort', 'distance')
+    url.searchParams.set('size', '15')
+    url.searchParams.set('page', String(page))
+    url.searchParams.set('category_group_code', 'FD6')
+
+    const res = await fetch(url.toString(), {
+      headers: { Authorization: `KakaoAK ${apiKey}` },
+    })
+
+    if (!res.ok) break
+
+    const data = (await res.json()) as { documents?: KakaoPlace[] }
+    const batch = data.documents ?? []
+
+    for (const place of batch) {
+      if (seen.has(place.id)) continue
+      seen.add(place.id)
+      results.push(place)
+      if (results.length >= maxResults) return results
+    }
+
+    if (batch.length < 15) break
+  }
+
+  return results
+}
+
+export async function searchRestaurantsForQuiz(
+  lat: number,
+  lng: number,
+  radius: number,
+  apiKey: string,
+  queries: string[],
+  maxResults = 40,
+): Promise<KakaoPlace[]> {
+  if (queries.length === 0) {
+    return searchNearbyRestaurants(lat, lng, radius, apiKey, maxResults)
+  }
+
+  const batches = await Promise.all(
+    queries.map((q) => searchNearbyByKeyword(lat, lng, radius, q, apiKey, 15)),
+  )
+
+  const seen = new Set<string>()
+  const merged: KakaoPlace[] = []
+  for (const place of batches.flat()) {
+    if (seen.has(place.id)) continue
+    seen.add(place.id)
+    merged.push(place)
+    if (merged.length >= maxResults) break
+  }
+  return merged
+}
+
+/** @deprecated searchRestaurantsForQuiz 사용 */
+export async function searchRestaurantsForRequest(
+  lat: number,
+  lng: number,
+  radius: number,
+  apiKey: string,
+  foodQueries: string[],
+  maxResults = 40,
+): Promise<KakaoPlace[]> {
+  return searchRestaurantsForQuiz(lat, lng, radius, apiKey, foodQueries, maxResults)
+}
+
 export function foodMatchScore(
   categoryName: string,
   foodPrefs: string[],
