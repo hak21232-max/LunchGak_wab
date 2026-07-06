@@ -46,11 +46,8 @@ export default function RestaurantCard({ pick }) {
         </li>
       </ul>
 
-      {pick.reason && (
-        <p className="mt-3 text-sm leading-relaxed text-gray-600">{pick.reason}</p>
-      )}
       {pick.tip && (
-        <p className="mt-1.5 text-xs text-gray-400">💡 {pick.tip}</p>
+        <p className="mt-3 text-xs text-gray-400">💡 {pick.tip}</p>
       )}
     </div>
   )
