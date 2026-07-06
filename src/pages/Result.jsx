@@ -7,6 +7,7 @@ import RestaurantCard from '../components/RestaurantCard'
 import useLocation from '../hooks/useLocation'
 import useRecommend from '../hooks/useRecommend'
 import { usePageMeta } from '../hooks/usePageMeta'
+import { shareToKakaoTalk } from '../utils/kakaoShare'
 import { shareRecommendResult } from '../utils/shareResult'
 
 export default function Result() {
@@ -34,6 +35,22 @@ export default function Result() {
       setShareMsg('공유에 실패했어요. 다시 시도해 주세요.')
     }
     if (result.ok) setTimeout(() => setShareMsg(null), 3000)
+  }
+
+  async function handleKakaoShare() {
+    if (!data) return
+    try {
+      await shareToKakaoTalk(data)
+      setShareMsg('카카오톡 공유 창을 열었어요!')
+      setTimeout(() => setShareMsg(null), 3000)
+    } catch (err) {
+      if (err?.message === 'NO_KEY') {
+        setShareMsg('카카오 공유 설정이 필요해요. (VITE_KAKAO_JS_KEY)')
+      } else {
+        setShareMsg('카카오톡 공유에 실패했어요. 다시 시도해 주세요.')
+      }
+      setTimeout(() => setShareMsg(null), 4000)
+    }
   }
 
   if (locLoading || loading) {
@@ -109,7 +126,14 @@ export default function Result() {
           onClick={handleShare}
           className="min-h-[40px] flex-1 rounded-xl bg-accent px-4 py-2 text-sm font-medium text-white"
         >
-          📤 결과 공유하기
+          📤 공유하기
+        </button>
+        <button
+          type="button"
+          onClick={handleKakaoShare}
+          className="min-h-[40px] flex-1 rounded-xl bg-[#FEE500] px-4 py-2 text-sm font-medium text-[#191919]"
+        >
+          💬 카카오톡
         </button>
       </div>
       {shareMsg && (

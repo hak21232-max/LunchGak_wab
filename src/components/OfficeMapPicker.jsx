@@ -27,7 +27,10 @@ const STATUS_MSG = {
   loading: '지도 불러오는 중...',
   no_key: 'VITE_KAKAO_JS_KEY 설정 후 재배포해 주세요.',
   error: '카카오맵을 불러오지 못했어요.',
-  domain_error: (o) => `카카오 콘솔에 ${o} 도메인을 등록해 주세요.`,
+  timeout: '지도 로드 시간 초과 — 네트워크를 확인해 주세요.',
+  script_error: '지도 스크립트 차단 — 광고차단을 확인해 주세요.',
+  domain_error: (o) => `카카오 콘솔 Web 도메인에 ${o} 등록이 필요해요.`,
+  init_error: '지도 초기화에 실패했어요.',
 }
 
 export default function OfficeMapPicker({ lat, lng, onPick }) {
@@ -35,10 +38,13 @@ export default function OfficeMapPicker({ lat, lng, onPick }) {
   const mapInstanceRef = useRef(null)
   const markerRef = useRef(null)
   const kakaoRef = useRef(null)
+  const onPickRef = useRef(onPick)
   const [status, setStatus] = useState('loading')
 
-  const pickLat = Number.isFinite(lat) ? lat : DEFAULT_CENTER.lat
-  const pickLng = Number.isFinite(lng) ? lng : DEFAULT_CENTER.lng
+  onPickRef.current = onPick
+
+  const initialLat = Number.isFinite(lat) ? lat : DEFAULT_CENTER.lat
+  const initialLng = Number.isFinite(lng) ? lng : DEFAULT_CENTER.lng
 
   useEffect(() => {
     let cancelled = false
@@ -46,59 +52,67 @@ export default function OfficeMapPicker({ lat, lng, onPick }) {
     loadKakaoMap()
       .then((kakao) => {
         if (cancelled || !mapRef.current) return
-        kakaoRef.current = kakao
 
-        const center = new kakao.maps.LatLng(pickLat, pickLng)
-        const map = new kakao.maps.Map(mapRef.current, {
-          center,
-          level: 3,
-        })
-        mapInstanceRef.current = map
+        try {
+          kakaoRef.current = kakao
 
-        const marker = new kakao.maps.Marker({
-          position: center,
-          map,
-          draggable: true,
-          image: createMarkerImage(kakao, OFFICE_COLOR),
-        })
-        markerRef.current = marker
+          const center = new kakao.maps.LatLng(initialLat, initialLng)
+          const map = new kakao.maps.Map(mapRef.current, {
+            center,
+            level: 3,
+          })
+          mapInstanceRef.current = map
 
-        function emitPosition(position) {
-          const la = position.getLat()
-          const ln = position.getLng()
-          onPick(la, ln)
+          const marker = new kakao.maps.Marker({
+            position: center,
+            map,
+            draggable: true,
+            image: createMarkerImage(kakao, OFFICE_COLOR),
+          })
+          markerRef.current = marker
+
+          function emitPosition(position) {
+            onPickRef.current(position.getLat(), position.getLng())
+          }
+
+          kakao.maps.event.addListener(map, 'click', (mouseEvent) => {
+            const pos = mouseEvent.latLng
+            marker.setPosition(pos)
+            emitPosition(pos)
+          })
+
+          kakao.maps.event.addListener(marker, 'dragend', () => {
+            emitPosition(marker.getPosition())
+          })
+
+          if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
+            onPickRef.current(initialLat, initialLng)
+          }
+
+          map.relayout()
+          setStatus('ready')
+        } catch {
+          if (!cancelled) setStatus('init_error')
         }
-
-        kakao.maps.event.addListener(map, 'click', (mouseEvent) => {
-          const pos = mouseEvent.latLng
-          marker.setPosition(pos)
-          emitPosition(pos)
-        })
-
-        kakao.maps.event.addListener(marker, 'dragend', () => {
-          emitPosition(marker.getPosition())
-        })
-
-        if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
-          onPick(pickLat, pickLng)
-        }
-
-        setStatus('ready')
       })
       .catch((err) => {
         if (cancelled) return
-        const msg = String(err?.message ?? '')
-        if (msg.includes('NO_KEY')) setStatus('no_key')
-        else if (msg.includes('DOMAIN')) setStatus('domain_error')
-        else setStatus('error')
+        const statusMap = {
+          NO_KEY: 'no_key',
+          TIMEOUT: 'timeout',
+          SCRIPT_ERROR: 'script_error',
+          DOMAIN_ERROR: 'domain_error',
+        }
+        setStatus(statusMap[String(err?.message ?? '')] ?? 'error')
       })
 
     return () => {
       cancelled = true
       markerRef.current?.setMap(null)
+      markerRef.current = null
       mapInstanceRef.current = null
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- map init once
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- map init once per mount
   }, [])
 
   useEffect(() => {
@@ -110,26 +124,35 @@ export default function OfficeMapPicker({ lat, lng, onPick }) {
     const pos = new kakao.maps.LatLng(lat, lng)
     marker.setPosition(pos)
     map.setCenter(pos)
+    map.relayout()
   }, [lat, lng])
 
-  if (status !== 'ready') {
+  const isFatal = status !== 'ready' && status !== 'loading'
+  if (isFatal) {
     const msg =
       status === 'domain_error'
         ? STATUS_MSG.domain_error(getCurrentOrigin())
         : STATUS_MSG[status] ?? STATUS_MSG.error
     return (
       <div className="flex h-56 items-center justify-center rounded-xl border border-gray-200 bg-gray-50 px-4 text-center text-xs text-gray-500">
-        {msg}
+        🗺️ {msg}
       </div>
     )
   }
 
   return (
-    <div>
-      <div ref={mapRef} className="h-56 w-full overflow-hidden rounded-xl border border-gray-200" />
-      <p className="mt-2 text-center text-[11px] text-gray-400">
-        지도를 탭하거나 핀을 드래그해서 회사 위치를 지정하세요
-      </p>
+    <div className="relative h-56 w-full overflow-hidden rounded-xl border border-gray-200">
+      {status === 'loading' && (
+        <div className="absolute inset-0 z-10 flex items-center justify-center bg-gray-50 text-xs text-gray-500">
+          {STATUS_MSG.loading}
+        </div>
+      )}
+      <div ref={mapRef} className="h-full w-full" />
+      {status === 'ready' && (
+        <p className="pointer-events-none absolute bottom-2 left-0 right-0 text-center text-[10px] text-gray-400">
+          탭 또는 드래그로 핀 이동
+        </p>
+      )}
     </div>
   )
 }

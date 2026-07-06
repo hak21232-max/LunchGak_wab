@@ -37,14 +37,13 @@ export default function LocationSelect() {
   useEffect(() => {
     if (mode === 'gps') {
       useGpsLocation()
+      return
     }
-  }, [mode, useGpsLocation])
-
-  useEffect(() => {
     if (mode === 'office' && savedOffice) {
       setOfficeDraft({ lat: savedOffice.lat, lng: savedOffice.lng })
+      setOfficeFromMap(savedOffice.lat, savedOffice.lng)
     }
-  }, [mode, savedOffice])
+  }, [mode, savedOffice, setOfficeFromMap, useGpsLocation])
 
   function handleOfficePick(pickLat, pickLng) {
     setOfficeDraft({ lat: pickLat, lng: pickLng })
@@ -54,6 +53,7 @@ export default function LocationSelect() {
   function handleModeChange(next) {
     setMode(next)
     if (next === 'office' && savedOffice) {
+      setOfficeDraft({ lat: savedOffice.lat, lng: savedOffice.lng })
       setOfficeFromMap(savedOffice.lat, savedOffice.lng)
     }
   }
@@ -65,8 +65,10 @@ export default function LocationSelect() {
 
   function handleStartQuiz() {
     if (!canProceed) return
-    if (mode === 'office' && officeDraft.lat != null) {
+    if (mode === 'office' && officeDraft.lat != null && officeDraft.lng != null) {
       setOfficeFromMap(officeDraft.lat, officeDraft.lng)
+    } else if (mode === 'gps') {
+      useGpsLocation()
     }
     navigate('/quiz')
   }
@@ -131,6 +133,7 @@ export default function LocationSelect() {
       {mode === 'office' && (
         <div className="mt-6 space-y-3">
           <OfficeMapPicker
+            key={savedOffice ? `office-${savedOffice.lat}-${savedOffice.lng}` : 'office-new'}
             lat={officeDraft.lat ?? savedOffice?.lat}
             lng={officeDraft.lng ?? savedOffice?.lng}
             onPick={handleOfficePick}
@@ -165,9 +168,15 @@ export default function LocationSelect() {
         문답 시작 →
       </button>
 
-      {locationSource && lat != null && (
+      {(mode === 'office' || (locationSource && lat != null)) && (
         <p className="mt-3 text-center text-[11px] text-gray-400">
-          선택됨: {locationSource === 'office' ? '회사 위치' : '현재 GPS'}
+          선택됨: {mode === 'office' ? '회사 위치' : '현재 GPS'}
+          {mode === 'office' && officeDraft.lat != null && (
+            <span>
+              {' '}
+              ({officeDraft.lat.toFixed(4)}, {officeDraft.lng.toFixed(4)})
+            </span>
+          )}
         </p>
       )}
     </div>
