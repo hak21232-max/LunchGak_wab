@@ -5,15 +5,18 @@ import RestaurantCard from '../components/RestaurantCard'
 import useLocation from '../hooks/useLocation'
 import useRecommend from '../hooks/useRecommend'
 
+import { usePageMeta } from '../hooks/usePageMeta'
+
 export default function Result() {
   const navigate = useNavigate()
   const { answers, resetAnswers } = useQuiz()
   const { lat, lng, loading: locLoading } = useLocation()
   const { data, loading, error, retry } = useRecommend(answers, lat, lng)
+  usePageMeta({ title: '추천 결과', description: '런치각 맛집 추천 결과', path: '/result', noindex: true })
 
   if (locLoading || loading) {
     return (
-      <div className="mx-auto flex min-h-screen max-w-sm items-center justify-center bg-bg px-6">
+      <div className="mx-auto flex items-center justify-center bg-bg px-6 py-16">
         <p className="text-sm text-gray-500">맛집 추천 중...</p>
       </div>
     )
@@ -21,7 +24,7 @@ export default function Result() {
 
   if (error) {
     return (
-      <div className="mx-auto flex min-h-screen max-w-sm flex-col items-center justify-center gap-4 bg-bg px-6">
+      <div className="mx-auto flex flex-col items-center justify-center gap-4 bg-bg px-6 py-16">
         <p className="text-center text-sm text-gray-600">{error}</p>
         <button
           type="button"
@@ -38,7 +41,7 @@ export default function Result() {
 
   if (data.nearby_no_match || data.picks.length === 0) {
     return (
-      <div className="mx-auto flex min-h-screen max-w-sm flex-col bg-bg px-6 py-8">
+      <div className="bg-bg px-6 py-8">
         <p className="text-lg font-bold text-primary">{data.greeting}</p>
         <p className="mt-2 text-sm text-gray-500">{data.recommendation_reason}</p>
         {data.weather_comment && (
@@ -68,7 +71,7 @@ export default function Result() {
   }
 
   return (
-    <div className="mx-auto min-h-screen max-w-sm bg-bg px-6 py-8">
+    <div className="bg-bg px-6 py-8">
       <KakaoMap picks={data.picks} userLat={lat} userLng={lng} />
 
       <p className="mt-4 text-lg font-bold text-primary">{data.greeting}</p>

@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import QuizCard from '../components/QuizCard'
 import { useQuiz } from '../context/QuizContext'
+import { usePageMeta } from '../hooks/usePageMeta'
 
 const QUESTIONS = [
   {
@@ -71,6 +72,7 @@ export default function Quiz() {
   const [step, setStep] = useState(0)
   const navigate = useNavigate()
   const { answers, setAnswer, resetAnswers } = useQuiz()
+  usePageMeta({ title: '맛집 추천 문답', description: '5가지 질문에 답하고 맞춤 점심 맛집을 추천받으세요.', path: '/quiz' })
 
   useEffect(() => {
     resetAnswers()
@@ -120,7 +122,7 @@ export default function Quiz() {
   }
 
   return (
-    <div className="mx-auto min-h-screen max-w-sm bg-bg px-6 py-8">
+    <div className="mx-auto bg-bg px-6 py-8">
       <div className="mb-6 flex items-center justify-between">
         <div className="flex gap-2">
           {QUESTIONS.map((_, i) => (
