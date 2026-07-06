@@ -1,5 +1,5 @@
 import { estimateWalkMin, parseRadiusMeters, searchNearbyRestaurants } from './kakao'
-import { enrichWithBlogData } from './naver'
+import { computeReputationScore, enrichWithBlogData, type BlogStats } from './naver'
 import { applyExcellentRestaurantBonus } from './publicdata'
 import { fetchWeather, buildWeatherComment } from './weather'
 import { fallbackGeminiOutput, generateRecommendations } from './gemini'
@@ -11,6 +11,7 @@ import type {
   RecommendResponse,
 } from './types'
 
+const KAKAO_FETCH_LIMIT = 30
 const GEMINI_CANDIDATE_LIMIT = 15
 
 interface PipelineSecrets {
@@ -24,25 +25,49 @@ interface PipelineSecrets {
 
 function buildEnrichedCandidates(
   places: KakaoPlace[],
-  blogScores: Map<string, number>,
+  blogStats: Map<string, BlogStats>,
   placesWithBonus: Array<KakaoPlace & { excellentBonus?: boolean }>,
 ): EnrichedCandidate[] {
   const bonusMap = new Map(
     placesWithBonus.map((place) => [place.id, place.excellentBonus ?? false]),
   )
 
-  return places.slice(0, GEMINI_CANDIDATE_LIMIT).map((place) => {
+  return places.map((place) => {
     const distanceM = Math.max(Number(place.distance), 1)
     const excellentBonus = bonusMap.get(place.id) ?? false
+    const walkMin = estimateWalkMin(distanceM)
+    const stats = blogStats.get(place.place_name) ?? {
+      mentionCount: 0,
+      positiveCount: 0,
+      negativeCount: 0,
+      positiveRatio: 0.5,
+      topKeywords: [],
+    }
 
     return {
       ...place,
-      walkMin: estimateWalkMin(distanceM),
-      blogMentions: blogScores.get(place.place_name) ?? 0,
+      walkMin,
+      blogMentions: stats.mentionCount,
+      blogPositiveCount: stats.positiveCount,
+      blogNegativeCount: stats.negativeCount,
+      blogPositiveRatio: stats.positiveRatio,
+      blogTopKeywords: stats.topKeywords,
+      reputationScore: computeReputationScore(stats, walkMin, excellentBonus),
       isExemplary: excellentBonus,
       excellentBonus,
     }
   })
+}
+
+/** 평판 점수 우선, 동점이면 거리순으로 Gemini 후보 15곳 선별 */
+function selectCandidatesForGemini(candidates: EnrichedCandidate[]): EnrichedCandidate[] {
+  return [...candidates]
+    .sort((a, b) => {
+      const scoreDiff = b.reputationScore - a.reputationScore
+      if (Math.abs(scoreDiff) > 0.5) return scoreDiff
+      return a.walkMin - b.walkMin
+    })
+    .slice(0, GEMINI_CANDIDATE_LIMIT)
 }
 
 function resolveCandidate(
@@ -112,41 +137,31 @@ export async function runRecommendationPipeline(
 ): Promise<RecommendResponse> {
   const radius = parseRadiusMeters(req.time)
 
-  // 1. 날씨 조회
   const weather = await fetchWeather(req.lat, req.lng, secrets.openWeatherApiKey)
   const weatherComment = buildWeatherComment(weather)
 
-  // 2. 카카오 Local API — 반경 내 음식점 (최대 30개, 거리순)
   const places = await searchNearbyRestaurants(
     req.lat,
     req.lng,
     radius,
     secrets.kakaoRestApiKey,
-    30,
+    KAKAO_FETCH_LIMIT,
   )
 
   if (places.length === 0) {
     throw new Error('주변에 음식점이 없어요.')
   }
 
-  const targetPlaces = places.slice(0, GEMINI_CANDIDATE_LIMIT)
+  const { blogStats } = await enrichWithBlogData(places, secrets.naverClientId, secrets.naverClientSecret)
 
-  // 3. 네이버 블로그 언급 수
-  const { blogScores } = await enrichWithBlogData(
-    targetPlaces,
-    secrets.naverClientId,
-    secrets.naverClientSecret,
-  )
-
-  // 4. 모범음식점 여부
   const placesWithBonus = await applyExcellentRestaurantBonus(
-    targetPlaces,
+    places,
     secrets.dataGoKrServiceKey,
   )
 
-  const candidates = buildEnrichedCandidates(targetPlaces, blogScores, placesWithBonus)
+  const allCandidates = buildEnrichedCandidates(places, blogStats, placesWithBonus)
+  const candidates = selectCandidatesForGemini(allCandidates)
 
-  // 5. Gemini 추천 (순위·필터링 전담)
   let geminiOutput
   try {
     geminiOutput = await generateRecommendations(req, candidates, weather, secrets.geminiApiKey)
@@ -154,7 +169,7 @@ export async function runRecommendationPipeline(
     geminiOutput = fallbackGeminiOutput(req, candidates, weather)
   }
 
-  return buildResponse(req, candidates, geminiOutput, weatherComment)
+  return buildResponse(req, allCandidates, geminiOutput, weatherComment)
 }
 
 export function validateRecommendRequest(body: unknown): RecommendRequest {

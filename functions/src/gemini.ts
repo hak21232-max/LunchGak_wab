@@ -10,7 +10,7 @@ import type {
 const SYSTEM_PROMPT = `당신은 대한민국 직장인의 점심·회식 맛집을 추천하는 AI 어시스턴트 "각이"입니다.
 
 [역할]
-제공된 모든 정보(문답 결과, 날씨, 식당 목록, 블로그 언급 수, 모범음식점 여부)를
+제공된 모든 정보(문답 결과, 날씨, 식당 목록, 블로그 평판, 모범음식점 여부)를
 종합적으로 판단해서 최적의 식당 3곳을 직접 선정하고 순위를 매겨줘.
 
 [순위 결정 기준 — 중요도 순]
@@ -24,29 +24,33 @@ const SYSTEM_PROMPT = `당신은 대한민국 직장인의 점심·회식 맛집
    - 비: 실내, 국물류 우선
    - 폭염(33도↑): 냉면, 실내 에어컨 우선
    - 추위(5도↓): 따뜻한 국물 우선
-   - 쾌청: 제한 없음
 
-3. 거리 — 중요
-   - 30분이내 선택 시 400m 이내 절대 우선
+3. 블로그 평판(호감도) — 매우 중요
+   - blogPositiveRatio(호감도 %)가 높은 곳 우선
+   - 긍정 키워드(맛있, 재방문, 강추 등)가 많은 곳 우선
+   - 언급 수만 많고 호감도 낮거나 부정 후기 많은 곳은 순위 낮춤
+   - 카카오맵 별점이 낮을 가능성 있는 곳(부정 후기 다수)은 피할 것
+
+4. 거리 — 중요
+   - 30분이내 선택 시 400m 이내 우선
    - 1시간이면 700m 이내
 
-4. 네이버 블로그 언급 수 — 참고
-   - 언급 수가 많을수록 인기 있는 곳
-   - 단, 거리·문답 조건이 맞으면 언급 수가 적어도 추천 가능
-
 5. 모범음식점 인증 — 가점 요소
-   - 위생·서비스 검증된 곳이므로 동점일 때 우선
-   - 추천 이유에 자연스럽게 언급
+
+[reason 작성 규칙 — 필수]
+- picks 3개의 reason은 절대 같은 문장·같은 패턴을 쓰지 말 것
+- 각 reason은 해당 식당만의 특징을 반드시 포함: 카테고리/대표 메뉴 추정, 블로그 긍정 키워드, 호감도, 모범음식점, 혼밥·회식 적합성 등
+- "조건에 맞고 도보 N분" 같은 공통 문구만 반복 금지
+- 카테고리·블로그 건수·도보 시간 나열만 하면 안 됨
 
 [제약]
-- 반드시 제공된 후보 목록 안에서만 선정 (없는 식당 지어내기 절대 금지)
-- picks[].reason: 이 식당을 고른 이유 (문답·날씨·거리 연결, 1~2문장). 카테고리·블로그 건수·도보 시간 나열만 하면 안 됨
+- 반드시 제공된 후보 목록 안에서만 선정
+- picks[].reason: 이 식당을 고른 이유 (1~2문장, 식당별 고유)
 - picks[].tip: 방문 꿀팁 (없으면 null). reason과 다른 내용
 - 직장인 언어로 짧고 명쾌하게
-- 이모지 1~2개 적절히 사용
 - 베이커리·디저트·카페(미팅 제외)는 한 끼 식사 후보에서 제외
 
-[출력 — 반드시 JSON만, 마크다운 없이]
+[출력 — 반드시 JSON만]
 {
   "greeting": "오늘 상황 공감 한 마디 (1문장, 이모지 1개)",
   "recommendation_reason": "선정 배경 요약 (2문장 이내)",
@@ -56,13 +60,11 @@ const SYSTEM_PROMPT = `당신은 대한민국 직장인의 점심·회식 맛집
       "place_id": "카카오 id",
       "name": "식당명",
       "category": "카테고리",
-      "reason": "1순위 선정 이유 — 문답·날씨·거리·인기도를 연결해서 (1~2문장)",
+      "reason": "이 식당만의 특징+문답 궁합 (1~2문장, 다른 pick과 다른 표현)",
       "tip": "꿀팁 (1문장, 없으면 null)",
       "walk_min": 5,
       "mood_match_score": 92
-    },
-    { "rank": 2, "...": "..." },
-    { "rank": 3, "...": "..." }
+    }
   ],
   "weather_comment": "날씨 한 마디 (특이사항 없으면 null)"
 }`
@@ -98,17 +100,31 @@ function formatAddress(candidate: EnrichedCandidate): string {
   return candidate.road_address_name || candidate.address_name || '주소 정보 없음'
 }
 
+function shortCategory(categoryName: string): string {
+  const parts = categoryName.split('>').map((p) => p.trim()).filter(Boolean)
+  return parts[parts.length - 1] ?? categoryName
+}
+
+function formatReputation(candidate: EnrichedCandidate): string {
+  const ratioPct = Math.round(candidate.blogPositiveRatio * 100)
+  const keywords =
+    candidate.blogTopKeywords.length > 0
+      ? candidate.blogTopKeywords.slice(0, 3).join(', ')
+      : '키워드 없음'
+
+  return `호감도 ${ratioPct}% (긍정 ${candidate.blogPositiveCount}건 / 부정 ${candidate.blogNegativeCount}건 / 총 ${candidate.blogMentions}건) | 긍정 키워드: ${keywords} | 평판점수: ${Math.round(candidate.reputationScore)}`
+}
+
 function formatCandidateBlock(candidate: EnrichedCandidate, index: number): string {
   const distanceM = Math.round(Number(candidate.distance))
   const excellentLabel = candidate.excellentBonus ? 'O' : 'X'
 
   return `${index + 1}. [${candidate.place_name}]
-   카테고리: ${candidate.category_name}
+   카테고리: ${candidate.category_name} (대표: ${shortCategory(candidate.category_name)})
    거리: ${distanceM}m (도보 ${candidate.walkMin}분)
    주소: ${formatAddress(candidate)}
-   네이버 블로그 언급: ${candidate.blogMentions}건
+   블로그 평판: ${formatReputation(candidate)}
    모범음식점: ${excellentLabel}
-   카카오맵: ${candidate.place_url}
    place_id: ${candidate.id}`
 }
 
@@ -138,12 +154,12 @@ function buildUserPrompt(
 === 자동 감지 정보 ===
 현재 시간: ${weekday}요일 ${hour}시 (${mealType})
 날씨: ${weatherDesc}, 기온 ${temp ?? '?'}°C ${weatherExtra}
-위치: 현재 위치 기준
 
-=== 후보 식당 전체 목록 (${candidates.length}개) ===
+=== 후보 식당 (${candidates.length}개, 평판점수 순) ===
 ${candidateBlocks}
 
 위 정보를 종합해서 오늘 이 사람에게 가장 잘 맞는 식당 3곳을 직접 골라줘.
+호감도 낮고 부정 후기 많은 곳은 피하고, picks[].reason은 식당마다 반드시 다르게 써줘.
 반드시 JSON만 반환.`
 }
 
@@ -180,27 +196,89 @@ function isMetadataReason(text: string): boolean {
   return /음식점\s*>/.test(text) && /도보\s*\d+분/.test(text)
 }
 
-function buildFallbackReason(
+function isGenericReason(text: string): boolean {
+  return /조건에\s*맞고\s*도보/.test(text) || /오늘\s*pick/.test(text)
+}
+
+function normalizeReasonKey(text: string): string {
+  return text.replace(/\s/g, '').slice(0, 40)
+}
+
+function buildDistinctReason(
   req: RecommendRequest,
   candidate: EnrichedCandidate,
+  rank: number,
+  usedKeys: Set<string>,
 ): string {
-  const foodHint = req.food[0]?.replace(/\(.*\)/, '').trim() ?? '한 끼'
-  return `${req.situation} · ${foodHint} 조건에 맞고 도보 ${candidate.walkMin}분 거리라 오늘 pick이에요.`
+  const cat = shortCategory(candidate.category_name)
+  const ratioPct = Math.round(candidate.blogPositiveRatio * 100)
+  const kw = candidate.blogTopKeywords.slice(0, 2).join('·')
+  const foodHint = req.food[0]?.replace(/\(.*\)/, '').trim() ?? ''
+
+  const variants: string[] = []
+
+  if (candidate.excellentBonus) {
+    variants.push(
+      `${candidate.place_name}은 모범음식점 ${cat}집 — 위생·서비스 검증됐고 ${req.situation}에도 부담 없어요.`,
+    )
+  }
+
+  if (candidate.blogPositiveRatio >= 0.6 && candidate.blogMentions >= 3) {
+    variants.push(
+      kw
+        ? `${cat} ${candidate.place_name}, 블로그에서 '${kw}' 후기가 많고 호감도 ${ratioPct}%예요. ${foodHint} 땡길 때 무난해요.`
+        : `${candidate.place_name} — 최근 블로그 호감도 ${ratioPct}%로 후기가 괜찮은 ${cat}집이에요.`,
+    )
+  } else if (candidate.blogMentions >= 5 && candidate.blogPositiveRatio < 0.4) {
+    variants.push(
+      `${candidate.place_name}은 ${cat}인데, 가까워서 ${rank}순위로 넣었어요. 혼잡할 수 있으니 참고하세요.`,
+    )
+  }
+
+  if (req.situation === '혼밥') {
+    variants.push(
+      `${candidate.place_name} — ${cat} 혼밥하기 편한 편이고 도보 ${candidate.walkMin}분 거리예요. ${req.mood.includes('스트레스') ? '스트레스 풀기 좋은' : '오늘'} 한 끼로 OK.`,
+    )
+  }
+
+  variants.push(
+    `${candidate.place_name}: ${cat} 전문점인데 ${foodHint || '한 끼'}랑 잘 맞고, 도보 ${candidate.walkMin}분이면 ${req.time.includes('30분') ? '점심 타임에' : '여유롭게'} 다녀올 수 있어요.`,
+  )
+
+  if (kw) {
+    variants.push(
+      `'${kw}' 언급 많은 ${candidate.place_name} — ${cat}계에서 ${req.situation}하기 괜찮은 선택이에요.`,
+    )
+  }
+
+  for (const reason of variants) {
+    const key = normalizeReasonKey(reason)
+    if (!usedKeys.has(key)) {
+      usedKeys.add(key)
+      return reason
+    }
+  }
+
+  const fallback = `${candidate.place_name}(${cat}) — ${rank}순위 추천, 도보 ${candidate.walkMin}분.`
+  usedKeys.add(normalizeReasonKey(fallback))
+  return fallback
 }
 
 function normalizePick(
   pick: Partial<GeminiPickDraft>,
   fallback: EnrichedCandidate,
   rank: number,
-  req?: RecommendRequest,
+  req: RecommendRequest,
+  usedReasonKeys: Set<string>,
 ): GeminiPickDraft {
   const rawReason = pick.reason?.trim()
-  const reason =
-    rawReason && !isMetadataReason(rawReason)
-      ? rawReason
-      : req
-        ? buildFallbackReason(req, fallback)
-        : `${fallback.place_name} — 도보 ${fallback.walkMin}분 거리의 추천이에요.`
+  let reason = rawReason && !isMetadataReason(rawReason) ? rawReason : ''
+
+  if (!reason || isGenericReason(reason) || usedReasonKeys.has(normalizeReasonKey(reason))) {
+    reason = buildDistinctReason(req, fallback, rank, usedReasonKeys)
+  } else {
+    usedReasonKeys.add(normalizeReasonKey(reason))
+  }
 
   return {
     rank: pick.rank ?? rank,
@@ -219,17 +297,20 @@ function normalizeOutput(
   candidates: EnrichedCandidate[],
   req: RecommendRequest,
 ): GeminiOutput {
+  const usedReasonKeys = new Set<string>()
+
   const picks = (output.picks ?? [])
     .slice(0, 3)
     .map((pick, index) => {
       const fallback = findCandidate(pick, candidates, index)
-      return normalizePick(pick, fallback, index + 1, req)
+      return normalizePick(pick, fallback, index + 1, req, usedReasonKeys)
     })
 
   return {
     greeting: output.greeting ?? '오늘 점심, 각 잡고 고르셨네요 🍽️',
     recommendation_reason:
-      output.recommendation_reason ?? '문답·날씨·거리를 종합해 골랐어요.',
+      output.recommendation_reason ??
+      '문답·평판·거리를 종합해 호감도 좋은 곳 위주로 골랐어요.',
     picks,
     weather_comment: output.weather_comment ?? null,
   }
@@ -258,18 +339,22 @@ export function fallbackGeminiOutput(
   candidates: EnrichedCandidate[],
   weather: WeatherInfo | null,
 ): GeminiOutput {
-  const top3 = candidates.slice(0, 3)
+  const top3 = [...candidates]
+    .sort((a, b) => b.reputationScore - a.reputationScore)
+    .slice(0, 3)
+
+  const usedReasonKeys = new Set<string>()
 
   return {
     greeting: `${req.mood.includes('스트레스') ? '스트레스' : '오늘'}도 각 잡고 먹자 🍽️`,
-    recommendation_reason: `${req.situation} · ${req.food.join(', ')} 조건에 맞춰 가까운 곳 위주로 골랐어요.`,
+    recommendation_reason: `${req.situation} · ${req.food.join(', ')} 조건에 맞고, 블로그 호감도 좋은 곳 위주로 골랐어요.`,
     weather_comment: weather ? `지금 ${Math.round(weather.temp)}°C — ${weather.description}` : null,
     picks: top3.map((p, index) => ({
       rank: index + 1,
       place_id: p.id,
       name: p.place_name,
       category: p.category_name,
-      reason: buildFallbackReason(req, p),
+      reason: buildDistinctReason(req, p, index + 1, usedReasonKeys),
       tip: null,
       walk_min: p.walkMin,
       mood_match_score: Math.max(70, 92 - index * 8),

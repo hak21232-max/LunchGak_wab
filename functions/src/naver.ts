@@ -1,13 +1,66 @@
 const MAX_START = 1000
 const PAGE_SIZE = 100
 
+const POSITIVE_KEYWORDS = [
+  '맛있',
+  '최고',
+  '강추',
+  '재방문',
+  '만족',
+  '훌륭',
+  '좋았',
+  '추천',
+  '친절',
+  '깔끔',
+  '가성비',
+  '든든',
+  '혼밥',
+  '분위기',
+  '양 많',
+  '양많',
+  '맛집',
+  '성공',
+  '훌륭',
+  '최애',
+]
+
+const NEGATIVE_KEYWORDS = [
+  '실망',
+  '별로',
+  '아쉽',
+  '불친절',
+  '비싸',
+  '양 적',
+  '양적',
+  '맛없',
+  '맛 없',
+  '최악',
+  '다신',
+  '후회',
+  '불만',
+  '짜다',
+  '기대 이하',
+  '환불',
+]
+
 interface NaverBlogItem {
+  title?: string
   link?: string
+  description?: string
   postdate?: string
 }
 
 interface NaverBlogResponse {
   items?: NaverBlogItem[]
+}
+
+export interface BlogStats {
+  mentionCount: number
+  positiveCount: number
+  negativeCount: number
+  /** 0~1, 데이터 없으면 0.5 */
+  positiveRatio: number
+  topKeywords: string[]
 }
 
 function getOneYearAgoPostdate(): string {
@@ -21,6 +74,24 @@ function getOneYearAgoPostdate(): string {
 
 function isWithinLastYear(postdate: string | undefined, cutoff: string): boolean {
   return Boolean(postdate && postdate.length === 8 && postdate >= cutoff)
+}
+
+function stripHtml(text: string): string {
+  return text.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim()
+}
+
+function analyzePostText(text: string): { positive: boolean; negative: boolean; keywords: string[] } {
+  const normalized = stripHtml(text)
+  const keywords: string[] = []
+
+  for (const kw of POSITIVE_KEYWORDS) {
+    if (normalized.includes(kw)) keywords.push(kw)
+  }
+
+  const positive = keywords.length > 0
+  const negative = NEGATIVE_KEYWORDS.some((kw) => normalized.includes(kw))
+
+  return { positive, negative, keywords }
 }
 
 async function fetchBlogPage(
@@ -48,15 +119,18 @@ async function fetchBlogPage(
   return data.items ?? []
 }
 
-/** 최근 1년 블로그 포스트 수 (포스트 1개 = 1건) */
-export async function getBlogMentionCount(
+/** 최근 1년 블로그: 건수 + 긍정/부정 + 상위 키워드 */
+export async function getBlogStats(
   query: string,
   clientId: string,
   clientSecret: string,
-): Promise<number> {
+): Promise<BlogStats> {
   const cutoff = getOneYearAgoPostdate()
   const seenLinks = new Set<string>()
-  let count = 0
+  const keywordHits = new Map<string, number>()
+  let mentionCount = 0
+  let positiveCount = 0
+  let negativeCount = 0
 
   for (let start = 1; start <= MAX_START; start += PAGE_SIZE) {
     const items = await fetchBlogPage(query, start, clientId, clientSecret)
@@ -76,17 +150,41 @@ export async function getBlogMentionCount(
         seenLinks.add(link)
       }
 
-      count += 1
+      mentionCount += 1
+      const text = `${item.title ?? ''} ${item.description ?? ''}`
+      const { positive, negative, keywords } = analyzePostText(text)
+
+      if (positive) positiveCount += 1
+      if (negative) negativeCount += 1
+
+      for (const kw of keywords) {
+        keywordHits.set(kw, (keywordHits.get(kw) ?? 0) + 1)
+      }
     }
 
     if (reachedOlderPosts || items.length < PAGE_SIZE) break
   }
 
-  return count
+  const judged = positiveCount + negativeCount
+  const positiveRatio =
+    judged > 0 ? positiveCount / judged : mentionCount > 0 ? 0.5 : 0.5
+
+  const topKeywords = [...keywordHits.entries()]
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 4)
+    .map(([kw]) => kw)
+
+  return {
+    mentionCount,
+    positiveCount,
+    negativeCount,
+    positiveRatio,
+    topKeywords,
+  }
 }
 
 export interface BlogEnrichment {
-  blogScores: Map<string, number>
+  blogStats: Map<string, BlogStats>
 }
 
 export async function enrichWithBlogData<T extends { place_name: string }>(
@@ -94,14 +192,27 @@ export async function enrichWithBlogData<T extends { place_name: string }>(
   clientId: string,
   clientSecret: string,
 ): Promise<BlogEnrichment> {
-  const blogScores = new Map<string, number>()
+  const blogStats = new Map<string, BlogStats>()
 
   await Promise.all(
     places.map(async (place) => {
-      const mentions = await getBlogMentionCount(place.place_name, clientId, clientSecret)
-      blogScores.set(place.place_name, mentions)
+      const stats = await getBlogStats(place.place_name, clientId, clientSecret)
+      blogStats.set(place.place_name, stats)
     }),
   )
 
-  return { blogScores }
+  return { blogStats }
+}
+
+/** 평판·인기도·거리·모범음식점 종합 점수 */
+export function computeReputationScore(stats: BlogStats, walkMin: number, isExemplary: boolean): number {
+  const ratioScore = stats.positiveRatio * 60
+  const volumeScore = Math.min(Math.log10(stats.mentionCount + 1) * 15, 25)
+  const negativePenalty = stats.negativeCount >= 3 && stats.positiveRatio < 0.4 ? 35 : stats.negativeCount * 4
+  const hypePenalty =
+    stats.mentionCount >= 50 && stats.positiveRatio < 0.45 ? 25 : 0
+  const distancePenalty = walkMin * 2
+  const exemplaryBonus = isExemplary ? 20 : 0
+
+  return ratioScore + volumeScore - negativePenalty - hypePenalty - distancePenalty + exemplaryBonus
 }

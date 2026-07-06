@@ -1,7 +1,8 @@
-/** 카테고리·거리·블로그만 반복하는 기계적 문구인지 판별 */
+/** 카테고리·거리·블로그만 반복하거나, 식당마다 똑같은 템플릿 문구 */
 export function isMetadataReason(text) {
   if (!text?.trim()) return true
   if (/음식점\s*>/.test(text) && /도보\s*\d+분/.test(text)) return true
+  if (/조건에\s*맞고\s*도보/.test(text) || /오늘\s*pick/.test(text)) return true
   return false
 }
 

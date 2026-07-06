@@ -23,6 +23,11 @@ export interface KakaoPlace {
 export interface EnrichedCandidate extends KakaoPlace {
   walkMin: number
   blogMentions: number
+  blogPositiveCount: number
+  blogNegativeCount: number
+  blogPositiveRatio: number
+  blogTopKeywords: string[]
+  reputationScore: number
   isExemplary: boolean
   excellentBonus: boolean
 }
