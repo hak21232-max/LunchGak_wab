@@ -20,17 +20,19 @@ function passesCategoryForVibe(category: string, vibe: string): boolean {
   if (EXCLUDE_ALWAYS.test(category)) return false
 
   switch (vibe) {
-    case '얼큰·자극적':
+    case '매운':
       if (SPICY_CATEGORY_BLOCK.some((r) => r.test(category))) return false
       return !/국밥|곰탕|설렁탕|돈까스|카츠|추어|초밥|스시|베이커리/.test(category)
-    case '따뜻한 국물':
+    case '국물':
       return /국밥|곰탕|설렁탕|칼국수|우동|라멘|찌개|전골|탕|국수|쌀국수/.test(category)
-    case '가볍고 깔끔':
+    case '가벼운':
       return /샐러드|죽|비빔|포케|백반|초밥|회|브런치/.test(category) && !/고깃|삼겹|곱창|족발/.test(category)
     case '고기':
       return /고깃|삼겹|갈비|숯불|연탄|곱창|족발|보쌈|스테이크|육/.test(category) && !/국밥>/.test(category)
     case '면류':
       return /면|라멘|우동|칼국수|파스타|국수|냉면|중식>.*면|분식/.test(category) && !/고깃|삼겹|숯불/.test(category)
+    case '밥류':
+      return /백반|덮밥|비빔|볶음밥|김밥|한식|일식>.*덮|돈부리/.test(category) && !/고깃|삼겹|숯불|곱창/.test(category)
     default:
       return true
   }

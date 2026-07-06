@@ -85,12 +85,22 @@ function validateLight(c: EnrichedCandidate): boolean {
   )
 }
 
+function validateRice(c: EnrichedCandidate): boolean {
+  const cat = c.category_name
+  const text = blogCorpus(c)
+  const riceTerms = ['덮밥', '비빔밥', '볶음밥', '백반', '김밥', '돈부리', '오므라이스', '제육덮밥', '비빔']
+  if (/고깃|삼겹|숯불|연탄|곱창|족발/.test(cat) && !/덮밥|백반|비빔/.test(cat)) return false
+  if (hasAny(text, riceTerms)) return true
+  return /백반|덮밥|비빔|볶음밥|김밥|한식>.*밥/.test(cat)
+}
+
 function validateSingleVibe(vibe: string, c: EnrichedCandidate): boolean {
-  if (vibe.includes('얼큰') || vibe.includes('자극')) return validateSpicy(c)
+  if (vibe.includes('매운')) return validateSpicy(c)
   if (vibe.includes('국물')) return validateSoup(c)
   if (vibe.includes('가벼')) return validateLight(c)
   if (vibe.includes('고기')) return validateMeat(c)
   if (vibe.includes('면')) return validateNoodle(c)
+  if (vibe.includes('밥')) return validateRice(c)
   return true
 }
 

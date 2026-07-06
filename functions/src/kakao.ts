@@ -1,11 +1,12 @@
 import type { KakaoPlace } from './types'
 
 const FOOD_KEYWORDS: Record<string, string[]> = {
-  '얼큰하고 자극적인 음식': ['마라', '짬뽕', '떡볶', '매운', '쭈꾸미', '낙지', '찌개', '탕', '볶음'],
+  '매운 음식': ['마라', '짬뽕', '떡볶', '매운', '얼큰', '쭈꾸미', '낙지', '찌개', '볶음', '청양'],
   '따뜻하고 든든한 국물 음식': ['국밥', '국수', '칼국수', '쌀국수', '우동', '라멘', '전골', '찌개', '탕', '곰탕'],
   '가볍고 깔끔한 음식': ['샐러드', '죽', '비빔', '냉면', '초밥', '회', '포케', '백반', '국수'],
   '고기류(삼겹살·갈비·스테이크 등)': ['고기', '삼겹', '갈비', '스테이크', '육', '숯불', '곱창', '대창', '족발', '보쌈'],
   '면 요리(라멘·칼국수·파스타 등)': ['면', '라멘', '칼국수', '파스타', '우동', '쌀국수', '짜장', '짬뽕', '냉면'],
+  '밥·덮밥·비빔밥 등': ['밥', '덮밥', '비빔밥', '볶음밥', '김밥', '백반', '제육덮밥', '오므라이스', '돈부리'],
 }
 
 const ALWAYS_EXCLUDED = [
@@ -87,9 +88,9 @@ const MEAL_CATEGORY_KEYWORDS = [
 ]
 
 export function parseRadiusMeters(time: string): number {
-  if (time.includes('400m')) return 400
-  if (time.includes('700m')) return 700
-  if (time.includes('1km')) return 1000
+  if (time.includes('1시간 이상') || time.includes('1시간이상') || time.includes('1km')) return 1000
+  if (time.includes('30분') || time.includes('400m')) return 400
+  if (time.includes('1시간') || time.includes('700m')) return 700
   return 700
 }
 
@@ -111,21 +112,10 @@ export function isEligibleMealPlace(
   // 간식 카테고리(분식 제외) — 베이커리·디저트류
   if (category.includes('간식') && !category.includes('분식')) return false
 
-  const isMeeting = situation === '미팅'
-  const isDinner = time.includes('저녁') || situation === '회식'
+  const isDinner = time.includes('1시간 이상') || time.includes('1시간이상') || situation === '회식'
 
-  // 미팅이 아니면 카페·커피 전문점 제외
-  if (!isMeeting && CAFE_KEYWORDS.some((word) => category.includes(word))) {
+  if (CAFE_KEYWORDS.some((word) => category.includes(word))) {
     return false
-  }
-
-  // 미팅: 카페·브런치 허용, 베이커리는 위에서 이미 제외
-  if (isMeeting) {
-    return (
-      CAFE_KEYWORDS.some((w) => category.includes(w)) ||
-      category.includes('브런치') ||
-      MEAL_CATEGORY_KEYWORDS.some((w) => category.includes(w))
-    )
   }
 
   // 점심·회식: 한 끼 식사 카테고리만
@@ -309,9 +299,6 @@ export function weatherMatchScore(categoryName: string, temp: number): number {
 }
 
 export function situationBonus(categoryName: string, situation: string): number {
-  if (situation === '미팅') {
-    return ['카페', '브런치'].some((kw) => categoryName.includes(kw)) ? 8 : 4
-  }
   if (situation === '회식') {
     return ['고기', '주점', '호프', '삼겹', '갈비', '회', '한정식'].some((kw) =>
       categoryName.includes(kw),
@@ -321,6 +308,13 @@ export function situationBonus(categoryName: string, situation: string): number 
   }
   if (situation === '혼밥') {
     return ['국밥', '분식', '백반', '면', '돈까스', '김밥'].some((kw) =>
+      categoryName.includes(kw),
+    )
+      ? 8
+      : 4
+  }
+  if (situation === '함께') {
+    return ['고기', '분식', '백반', '한정식', '면', '덮밥'].some((kw) =>
       categoryName.includes(kw),
     )
       ? 8

@@ -75,7 +75,7 @@ function passesSituationFilter(place: KakaoPlace, req: RecommendRequest): boolea
     if (matchesKeywords(category, ['한정식', '오마카세', '코스', '파인'])) return false
   }
 
-  if (req.situation === '팀점심') {
+  if (req.situation === '함께') {
     if (matchesKeywords(category, ['오마카세', '코스'])) return false
   }
 

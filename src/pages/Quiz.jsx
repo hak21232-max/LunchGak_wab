@@ -11,9 +11,8 @@ const QUESTIONS = [
     multi: false,
     options: [
       { emoji: '🍱', label: '혼밥', desc: '혼자 빠르게', val: '혼밥', half: true },
-      { emoji: '👥', label: '팀 점심', desc: '2~4명', val: '팀점심', half: true },
+      { emoji: '👥', label: '함께', desc: '2~4명', val: '함께', half: true },
       { emoji: '🍻', label: '회식', desc: '단체·예약 필요', val: '회식', half: true },
-      { emoji: '☕', label: '가벼운 미팅', desc: '카페·브런치', val: '미팅', half: true },
     ],
   },
   {
@@ -22,10 +21,10 @@ const QUESTIONS = [
     sub: '추천 방향이 달라져요',
     multi: false,
     options: [
-      { emoji: '😤', label: '스트레스 받았다', desc: '매운 것, 자극적인 것', val: '스트레스' },
-      { emoji: '😴', label: '피곤하다', desc: '따뜻하고 든든한 것', val: '피곤' },
       { emoji: '🎉', label: '기분 좋다', desc: '새로운 메뉴 도전', val: '기분좋음' },
-      { emoji: '😐', label: '그냥 평범하다', desc: '빠르고 익숙한 것', val: '평범' },
+      { emoji: '😤', label: '스트레스', desc: '매운 것, 자극적인 것', val: '스트레스' },
+      { emoji: '😴', label: '피곤하다', desc: '따뜻하고 든든한 것', val: '피곤' },
+      { emoji: '😐', label: '평범하다', desc: '빠르고 익숙한 것', val: '평범' },
       { emoji: '🤒', label: '몸이 안 좋다', desc: '소화 잘 되는 것', val: '몸안좋음' },
     ],
   },
@@ -35,12 +34,13 @@ const QUESTIONS = [
     sub: '여러 개 선택해도 돼요',
     multi: true,
     options: [
-      { emoji: '🌶️', label: '얼큰·자극적', val: '얼큰', half: true },
-      { emoji: '🍲', label: '따뜻한 국물', val: '국물', half: true },
-      { emoji: '🥗', label: '가볍고 깔끔', val: '가벼운', half: true },
+      { emoji: '🌶️', label: '매운', val: '매운', half: true },
+      { emoji: '🍲', label: '국물', val: '국물', half: true },
+      { emoji: '🍜', label: '면류', val: '면류', half: true },
+      { emoji: '🍚', label: '밥류', val: '밥류', half: true },
       { emoji: '🍖', label: '고기', val: '고기', half: true },
-      { emoji: '🍜', label: '면류', val: '면', half: true },
-      { emoji: '🤷', label: '아무거나', val: '자유', half: true },
+      { emoji: '🥗', label: '가벼운', val: '가벼운', half: true },
+      { emoji: '🤷', label: '자유', val: '자유', half: true },
     ],
   },
   {
@@ -50,8 +50,8 @@ const QUESTIONS = [
     multi: false,
     options: [
       { emoji: '⚡', label: '30분 이내', desc: '도보 5분 이내, 빠른 곳', val: '30분이내' },
-      { emoji: '🕐', label: '1시간 정도', desc: '여유 있게 제대로', val: '1시간' },
-      { emoji: '🌙', label: '오늘 저녁 회식', desc: '예약·단체석 우선', val: '저녁회식' },
+      { emoji: '🕐', label: '1시간 정도', desc: '여유 있게 제대로', val: '1시간정도' },
+      { emoji: '🕑', label: '1시간 이상', desc: '멀어도 괜찮아요', val: '1시간이상' },
     ],
   },
   {
