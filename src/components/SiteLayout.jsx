@@ -2,6 +2,7 @@ import { Link, useLocation } from 'react-router-dom'
 
 const FOOTER_LINKS = [
   { to: '/about', label: '서비스 소개' },
+  { to: '/blog', label: '맛집 블로그' },
   { to: '/guide', label: '점심 가이드' },
   { to: '/privacy', label: '개인정보처리방침' },
   { to: '/terms', label: '이용약관' },
@@ -11,7 +12,7 @@ const FOOTER_LINKS = [
 export default function SiteLayout({ children }) {
   const { pathname } = useLocation()
   const isAppFlow = pathname === '/quiz' || pathname === '/result'
-  const isWide = /^\/(about|privacy|terms|contact|guide)/.test(pathname)
+  const isWide = /^\/(about|privacy|terms|contact|guide|blog)/.test(pathname)
 
   return (
     <div className="flex min-h-screen flex-col bg-bg">
@@ -29,6 +30,9 @@ export default function SiteLayout({ children }) {
               </Link>
               <Link to="/guide" className="hover:text-primary">
                 가이드
+              </Link>
+              <Link to="/blog" className="hover:text-primary">
+                블로그
               </Link>
               <Link to="/about" className="hover:text-primary">
                 소개

@@ -11,6 +11,8 @@ import Terms from './pages/Terms'
 import Contact from './pages/Contact'
 import GuideIndex from './pages/GuideIndex'
 import GuideArticle from './pages/GuideArticle'
+import BlogIndex from './pages/BlogIndex'
+import BlogPost from './pages/BlogPost'
 
 function AppShell() {
   return (
@@ -36,6 +38,8 @@ export default function App() {
               <Route path="/contact" element={<Contact />} />
               <Route path="/guide" element={<GuideIndex />} />
               <Route path="/guide/:slug" element={<GuideArticle />} />
+              <Route path="/blog" element={<BlogIndex />} />
+              <Route path="/blog/:slug" element={<BlogPost />} />
             </Route>
           </Routes>
         </BrowserRouter>
