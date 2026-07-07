@@ -2,6 +2,7 @@ import { createContext, useCallback, useContext, useState } from 'react'
 
 function getInitialAnswers() {
   return {
+    meal: null,
     situation: null,
     mood: null,
     food: null,

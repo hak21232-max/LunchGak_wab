@@ -101,13 +101,6 @@ function getKstNow(): Date {
   return new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Seoul' }))
 }
 
-function resolveMealType(hour: number): string {
-  if (hour >= 17) return '저녁'
-  if (hour >= 11) return '점심'
-  if (hour >= 5) return '브런치·점심'
-  return '야식·새벽'
-}
-
 function buildWeatherExtra(weather: WeatherInfo | null): string {
   if (!weather) return ''
 
@@ -177,7 +170,6 @@ function buildUserPrompt(
   const kst = getKstNow()
   const weekday = WEEKDAYS[kst.getDay()]
   const hour = kst.getHours()
-  const mealType = resolveMealType(hour)
 
   const temp = weather ? Math.round(weather.temp) : null
   const weatherDesc = weather?.description ?? '정보 없음'
@@ -193,7 +185,8 @@ ${buildQuizSummary(req)}
 음식 결(foodVibe): ${foodVibe}
 
 === 자동 감지 정보 ===
-현재 시간: ${weekday}요일 ${hour}시 (${mealType})
+현재 시간: ${weekday}요일 ${hour}시 (참고)
+선택 식사 시간대: ${req.meal} (사용자 선택 — 추천·reason에 반영)
 날씨: ${weatherDesc}, 기온 ${temp ?? '?'}°C ${weatherExtra}
 
 === 후보 식당 (${candidates.length}개) — 블로그 메뉴·후기(description)를 보고 문답 음식에 맞는 3곳 선정 ===

@@ -48,7 +48,7 @@ function matchesKeywords(text: string, keywords: string[]): boolean {
 
 /** Q1 자리 — 상황·식사 가능 업종 */
 function passesSituationFilter(place: KakaoPlace, req: RecommendRequest): boolean {
-  if (!isEligibleMealPlace(place.category_name, req.situation, req.time)) {
+  if (!isEligibleMealPlace(place.category_name, req.situation, req.meal)) {
     return false
   }
 

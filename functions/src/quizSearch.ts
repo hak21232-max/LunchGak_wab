@@ -4,6 +4,15 @@ import type { RecommendRequest } from './types'
 export function buildQuizSearchQueries(req: RecommendRequest): string[] {
   const queries = new Set<string>()
 
+  if (req.meal.includes('점심')) {
+    queries.add('점심특선')
+    queries.add('점심 맛집')
+  }
+  if (req.meal.includes('저녁')) {
+    queries.add('저녁 맛집')
+    queries.add('술집')
+  }
+
   if (req.food.some((f) => f.includes('자유'))) {
     queries.add('맛집')
     if (req.situation === '회식') queries.add('회식 맛집')

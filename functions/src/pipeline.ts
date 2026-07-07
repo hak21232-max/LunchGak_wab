@@ -240,6 +240,7 @@ export function validateRecommendRequest(body: unknown): RecommendRequest {
   const food = Array.isArray(data.food) ? data.food.map(String) : []
 
   if (
+    !data.meal ||
     !data.situation ||
     !data.mood ||
     food.length === 0 ||
@@ -248,10 +249,11 @@ export function validateRecommendRequest(body: unknown): RecommendRequest {
     Number.isNaN(lat) ||
     Number.isNaN(lng)
   ) {
-    throw new Error('필수 항목(situation, mood, food, time, budget, lat, lng)이 필요해요.')
+    throw new Error('필수 항목(meal, situation, mood, food, time, budget, lat, lng)이 필요해요.')
   }
 
   return {
+    meal: String(data.meal),
     situation: String(data.situation),
     mood: String(data.mood),
     food,

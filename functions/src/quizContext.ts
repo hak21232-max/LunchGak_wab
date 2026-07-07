@@ -231,6 +231,7 @@ function foodConnectionPhrase(req: RecommendRequest, candidate: EnrichedCandidat
 
 export function buildQuizSummary(req: RecommendRequest): string {
   return [
+    `식사=${req.meal}`,
     `자리=${req.situation}`,
     `기분=${req.mood}`,
     `음식=${req.food.join('+')}`,

@@ -102,7 +102,7 @@ export function estimateWalkMin(distanceM: number): number {
 export function isEligibleMealPlace(
   categoryName: string,
   situation: string,
-  time: string,
+  meal: string,
 ): boolean {
   const category = categoryName ?? ''
 
@@ -112,7 +112,7 @@ export function isEligibleMealPlace(
   // 간식 카테고리(분식 제외) — 베이커리·디저트류
   if (category.includes('간식') && !category.includes('분식')) return false
 
-  const isDinner = time.includes('1시간 이상') || time.includes('1시간이상') || situation === '회식'
+  const isDinner = meal.includes('저녁') || situation === '회식'
 
   if (CAFE_KEYWORDS.some((word) => category.includes(word))) {
     return false

@@ -8,6 +8,17 @@ import { usePageMeta } from '../hooks/usePageMeta'
 
 const QUESTIONS = [
   {
+    id: 'meal',
+    title: '점심이에요, 저녁이에요?',
+    sub: '시간대에 맞는 식당을 찾아드릴게요',
+    gridCols: 2,
+    multi: false,
+    options: [
+      { emoji: '☀️', label: '점심', desc: '한끼·점심특선·빠른 식사', val: '점심' },
+      { emoji: '🌙', label: '저녁', desc: '회식·술집·여유 있는 식사', val: '저녁' },
+    ],
+  },
+  {
     id: 'situation',
     title: '어떤 자리예요?',
     sub: '상황에 맞는 식당을 찾아드릴게요',
@@ -80,7 +91,7 @@ export default function Quiz() {
   const navigate = useNavigate()
   const { answers, setAnswer, resetAnswers } = useQuiz()
   const { lat, lng, loading: locLoading, savedOffice, setOfficeFromMap } = useLocation()
-  usePageMeta({ title: '맛집 추천 문답', description: '5가지 질문에 답하고 맞춤 점심 맛집을 추천받으세요.', path: '/quiz' })
+  usePageMeta({ title: '맛집 추천 문답', description: '6가지 질문에 답하고 맞춤 점심·저녁 맛집을 추천받으세요.', path: '/quiz' })
 
   useEffect(() => {
     if (locLoading) return

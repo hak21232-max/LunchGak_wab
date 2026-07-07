@@ -2,6 +2,11 @@ import { useCallback, useEffect, useState } from 'react'
 import { resolveFunctionUrl } from '../utils/functionsUrl'
 import { normalizeRecommendResponse } from '../utils/normalizePick'
 
+const MEAL_MAP = {
+  점심: '점심 (한끼·점심특선·빠른 식사)',
+  저녁: '저녁 (회식·술집·여유 있는 식사)',
+}
+
 const MOOD_MAP = {
   스트레스: '스트레스가 심한 상태',
   피곤: '몸이 많이 피곤한 상태',
@@ -88,6 +93,7 @@ const MOCK_DATA = {
 
 function buildBody(answers, lat, lng) {
   return {
+    meal: MEAL_MAP[answers.meal] ?? answers.meal,
     situation: answers.situation,
     mood: MOOD_MAP[answers.mood],
     food: answers.food ? [FOOD_MAP[answers.food] ?? answers.food] : [],
@@ -100,6 +106,7 @@ function buildBody(answers, lat, lng) {
 
 function isReady(answers, lat, lng) {
   return (
+    answers?.meal &&
     answers?.situation &&
     answers?.mood &&
     answers?.food != null &&
