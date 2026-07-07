@@ -27,19 +27,18 @@ export default function Home() {
           <br />
           GPS·날씨·블로그 후기까지 반영해 근처 맛집 3곳을 추천합니다.
         </p>
-        <button
-          type="button"
-          onClick={handleStart}
-          className="mt-8 min-h-[44px] rounded-2xl bg-primary px-10 py-4 text-lg text-white transition-colors hover:bg-accent"
-        >
-          🍽️ 지금 추천받기
-        </button>
-        <Link
-          to="/excluded"
-          className="mt-3 inline-block text-sm text-gray-500 underline"
-        >
-          🚫 내 제외식당{excludedCount > 0 ? ` (${excludedCount})` : ''}
-        </Link>
+        <div className="mt-8 flex flex-col items-center gap-3">
+          <button
+            type="button"
+            onClick={handleStart}
+            className="min-h-[44px] w-full max-w-xs rounded-2xl bg-primary px-10 py-4 text-lg text-white transition-colors hover:bg-accent"
+          >
+            🍽️ 지금 추천받기
+          </button>
+          <Link to="/excluded" className="text-sm text-gray-500 underline">
+            🚫 내 제외식당{excludedCount > 0 ? ` (${excludedCount})` : ''}
+          </Link>
+        </div>
       </section>
 
       <section className="mt-12">
