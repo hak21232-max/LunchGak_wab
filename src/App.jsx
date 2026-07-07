@@ -14,6 +14,7 @@ import GuideArticle from './pages/GuideArticle'
 import BlogIndex from './pages/BlogIndex'
 import BlogPost from './pages/BlogPost'
 import LocationSelect from './pages/LocationSelect'
+import SharedResult from './pages/SharedResult'
 import ExcludedRestaurants from './pages/ExcludedRestaurants'
 
 function AppShell() {
