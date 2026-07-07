@@ -101,7 +101,7 @@ function createPopupOverlay(kakao, text, color, zIndex = 15) {
 
   return new kakao.maps.CustomOverlay({
     content: el,
-    yAnchor: 2.2,
+    yAnchor: 1.35,
     zIndex,
   })
 }
