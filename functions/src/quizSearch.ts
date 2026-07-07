@@ -48,11 +48,20 @@ export function resolveFoodSearchKeyword(req: RecommendRequest): string {
   return map[vibe] ?? vibe
 }
 
-/** 회식일 때 네이버 블로그: 식당이름 + 음식 + 회식 */
+/** 네이버 블로그 검색 쿼리 — 일반: 식당명+음식, 회식: 식당명+음식+회식 (고기는 회식 제외) */
 export function buildBlogSearchQuery(placeName: string, req: RecommendRequest): string {
-  if (req.situation !== '회식') return placeName
   const food = resolveFoodSearchKeyword(req)
-  return food ? `${placeName} ${food} 회식` : `${placeName} 회식`
+  const meatHoesik =
+    req.food.some((f) => f.includes('고기')) && !req.food.some((f) => f.includes('자유'))
+
+  if (req.situation === '회식') {
+    if (meatHoesik) {
+      return food ? `${placeName} ${food}` : placeName
+    }
+    return food ? `${placeName} ${food} 회식` : `${placeName} 회식`
+  }
+
+  return food ? `${placeName} ${food}` : placeName
 }
 
 /** 문답 → 카카오 키워드 검색 쿼리 (음식종류 중심) */
@@ -69,11 +78,15 @@ export function buildQuizSearchQueries(req: RecommendRequest): string[] {
   }
 
   if (req.situation === '회식') {
+    const meatHoesik =
+      req.food.some((f) => f.includes('고기')) && !req.food.some((f) => f.includes('자유'))
     for (const term of collectFoodTerms(req)) {
-      queries.add(`${term} 회식`)
+      queries.add(meatHoesik ? term : `${term} 회식`)
     }
-    queries.add('회식 맛집')
-    queries.add('회식')
+    if (!meatHoesik) {
+      queries.add('회식 맛집')
+      queries.add('회식')
+    }
     return [...queries].slice(0, 8)
   }
 
