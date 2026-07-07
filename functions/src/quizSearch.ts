@@ -1,6 +1,61 @@
 import type { RecommendRequest } from './types'
 
-/** 5문답 → 카카오 키워드 검색 쿼리 (음식종류 중심) */
+function collectFoodTerms(req: RecommendRequest): string[] {
+  const terms = new Set<string>()
+
+  if (req.food.some((f) => f.includes('자유'))) {
+    terms.add('맛집')
+    terms.add('고깃집')
+    return [...terms]
+  }
+
+  for (const food of req.food) {
+    if (food.includes('매운')) {
+      ;['매운음식', '찌개', '분식', '마라탕', '떡볶이', '제육볶음'].forEach((q) => terms.add(q))
+    }
+    if (food.includes('국물')) {
+      ;['국밥', '칼국수', '설렁탕', '곰탕', '전골'].forEach((q) => terms.add(q))
+    }
+    if (food.includes('면')) {
+      ;['라멘', '칼국수', '우동', '파스타', '냉면'].forEach((q) => terms.add(q))
+    }
+    if (food.includes('밥')) {
+      ;['덮밥', '비빔밥', '볶음밥', '백반', '김밥'].forEach((q) => terms.add(q))
+    }
+    if (food.includes('가벼')) {
+      ;['샐러드', '죽', '비빔밥', '포케'].forEach((q) => terms.add(q))
+    }
+    if (food.includes('고기')) {
+      ;['삼겹살', '고깃집', '갈비', '스테이크'].forEach((q) => terms.add(q))
+    }
+  }
+
+  return [...terms]
+}
+
+/** 블로그 검색용 음식 키워드 (회식 조합) */
+export function resolveFoodSearchKeyword(req: RecommendRequest): string {
+  const vibe = resolvePrimaryFoodVibe(req)
+  const map: Record<string, string> = {
+    매운: '매운음식',
+    국물: '국물',
+    면류: '면',
+    밥류: '밥',
+    고기: '고기',
+    가벼운: '가벼운',
+    자유: '',
+  }
+  return map[vibe] ?? vibe
+}
+
+/** 회식일 때 네이버 블로그: 식당이름 + 음식 + 회식 */
+export function buildBlogSearchQuery(placeName: string, req: RecommendRequest): string {
+  if (req.situation !== '회식') return placeName
+  const food = resolveFoodSearchKeyword(req)
+  return food ? `${placeName} ${food} 회식` : `${placeName} 회식`
+}
+
+/** 문답 → 카카오 키워드 검색 쿼리 (음식종류 중심) */
 export function buildQuizSearchQueries(req: RecommendRequest): string[] {
   const queries = new Set<string>()
 
@@ -13,36 +68,26 @@ export function buildQuizSearchQueries(req: RecommendRequest): string[] {
     queries.add('술집')
   }
 
+  if (req.situation === '회식') {
+    for (const term of collectFoodTerms(req)) {
+      queries.add(`${term} 회식`)
+    }
+    queries.add('회식 맛집')
+    queries.add('회식')
+    return [...queries].slice(0, 8)
+  }
+
   if (req.food.some((f) => f.includes('자유'))) {
     queries.add('맛집')
-    if (req.situation === '회식') queries.add('회식 맛집')
     if (req.situation === '혼밥') queries.add('혼밥')
     if (req.situation === '함께') queries.add('점심 맛집')
     return [...queries].slice(0, 5)
   }
 
-  for (const food of req.food) {
-    if (food.includes('매운')) {
-      ;['매운음식', '찌개', '분식', '마라탕', '떡볶이', '제육볶음'].forEach((q) => queries.add(q))
-    }
-    if (food.includes('국물')) {
-      ;['국밥', '칼국수', '설렁탕', '곰탕', '전골'].forEach((q) => queries.add(q))
-    }
-    if (food.includes('면')) {
-      ;['라멘', '칼국수', '우동', '파스타', '냉면'].forEach((q) => queries.add(q))
-    }
-    if (food.includes('밥')) {
-      ;['덮밥', '비빔밥', '볶음밥', '백반', '김밥'].forEach((q) => queries.add(q))
-    }
-    if (food.includes('가벼')) {
-      ;['샐러드', '죽', '비빔밥', '포케'].forEach((q) => queries.add(q))
-    }
-    if (food.includes('고기')) {
-      ;['삼겹살', '고깃집', '갈비', '스테이크'].forEach((q) => queries.add(q))
-    }
+  for (const term of collectFoodTerms(req)) {
+    queries.add(term)
   }
 
-  if (req.situation === '회식') queries.add('회식')
   if (req.situation === '혼밥') queries.add('혼밥 맛집')
   if (req.situation === '함께') queries.add('점심 맛집')
   if (req.budget.includes('1만')) queries.add('점심특선')

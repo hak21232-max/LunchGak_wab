@@ -8,7 +8,7 @@ const RANK_COLORS = {
   3: '#92400E',
 }
 
-const RANK_SIZES = { 1: 38, 2: 28, 3: 28 }
+const RANK_SIZES = { 1: 26, 2: 20, 3: 20 }
 const RANK_Z_INDEX = { 1: 40, 2: 25, 3: 20 }
 
 const USER_COLOR = '#3B82F6'
@@ -83,40 +83,12 @@ function resolveMarkerPosition(lat, lng, rank, userLat, userLng, usedPositions) 
   return { lat: resolvedLat, lng: resolvedLng }
 }
 
-function createRankLabelOverlay(kakao, map, position, pick, color) {
-  const el = document.createElement('div')
-  const isFirst = pick.rank === 1
-  el.style.cssText = [
-    'padding:4px 8px',
-    'border-radius:8px',
-    `background:${isFirst ? '#1B2A4A' : '#fff'}`,
-    `color:${isFirst ? '#fff' : '#1B2A4A'}`,
-    'font-size:11px',
-    'font-weight:700',
-    'white-space:nowrap',
-    `border:2px solid ${color}`,
-    'box-shadow:0 2px 6px rgba(0,0,0,.18)',
-    'pointer-events:none',
-  ].join(';')
-  el.textContent = `${pick.rank}위 ${pick.name}`
-
-  const overlay = new kakao.maps.CustomOverlay({
-    position,
-    content: el,
-    yAnchor: 2.4,
-    zIndex: RANK_Z_INDEX[pick.rank] ?? 15,
-  })
-  overlay.setMap(map)
-  return overlay
-}
-
 function clearOverlays(kakao, overlays) {
-  overlays.forEach(({ marker, labelOverlay, infowindow, onMarkerClick }) => {
+  overlays.forEach(({ marker, infowindow, onMarkerClick }) => {
     if (onMarkerClick && kakao?.maps?.event) {
       kakao.maps.event.removeListener(marker, 'click', onMarkerClick)
     }
     marker?.setMap(null)
-    labelOverlay?.setMap(null)
     infowindow?.close()
   })
 }
@@ -164,7 +136,7 @@ export default function KakaoMap({ picks, userLat, userLng, onStatusChange }) {
           const userMarker = new kakao.maps.Marker({
             position: center,
             map,
-            image: createCircleMarkerImage(kakao, USER_COLOR, 22),
+            image: createCircleMarkerImage(kakao, USER_COLOR, 18),
             zIndex: 5,
           })
           overlaysRef.current.push({ marker: userMarker })
@@ -196,8 +168,6 @@ export default function KakaoMap({ picks, userLat, userLng, onStatusChange }) {
               zIndex: RANK_Z_INDEX[pick.rank] ?? 10,
             })
 
-            const labelOverlay = createRankLabelOverlay(kakao, map, position, pick, color)
-
             const infowindow = new kakao.maps.InfoWindow({
               content: `<div style="padding:8px 10px;font-size:12px;white-space:nowrap;font-weight:600;">${pick.rank}위 ${pick.name} · 도보 ${pick.walk_min}분</div>`,
             })
@@ -209,7 +179,7 @@ export default function KakaoMap({ picks, userLat, userLng, onStatusChange }) {
 
             kakao.maps.event.addListener(marker, 'click', onMarkerClick)
 
-            overlaysRef.current.push({ marker, labelOverlay, infowindow, onMarkerClick })
+            overlaysRef.current.push({ marker, infowindow, onMarkerClick })
           })
 
           map.setBounds(bounds)

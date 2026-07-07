@@ -192,6 +192,7 @@ export async function runRecommendationPipeline(
     targetPlaces,
     secrets.naverClientId,
     secrets.naverClientSecret,
+    req,
   )
 
   const placesWithBonus = await applyExcellentRestaurantBonus(

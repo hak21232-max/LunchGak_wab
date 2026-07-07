@@ -1,3 +1,6 @@
+import { buildBlogSearchQuery } from './quizSearch'
+import type { RecommendRequest } from './types'
+
 const MAX_START = 300
 const PAGE_SIZE = 100
 const MAX_SNIPPETS = 6
@@ -283,12 +286,14 @@ export async function enrichWithBlogData<T extends { place_name: string }>(
   places: T[],
   clientId: string,
   clientSecret: string,
+  req?: RecommendRequest,
 ): Promise<BlogEnrichment> {
   const blogStats = new Map<string, BlogStats>()
 
   await Promise.all(
     places.map(async (place) => {
-      const stats = await getBlogStats(place.place_name, clientId, clientSecret)
+      const query = req ? buildBlogSearchQuery(place.place_name, req) : place.place_name
+      const stats = await getBlogStats(query, clientId, clientSecret)
       blogStats.set(place.place_name, stats)
     }),
   )
