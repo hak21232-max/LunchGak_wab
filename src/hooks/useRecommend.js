@@ -90,7 +90,7 @@ function buildBody(answers, lat, lng) {
   return {
     situation: answers.situation,
     mood: MOOD_MAP[answers.mood],
-    food: (answers.food ?? []).map((f) => FOOD_MAP[f]),
+    food: answers.food ? [FOOD_MAP[answers.food] ?? answers.food] : [],
     time: TIME_MAP[answers.time],
     budget: BUDGET_MAP[answers.budget],
     lat,
@@ -102,7 +102,7 @@ function isReady(answers, lat, lng) {
   return (
     answers?.situation &&
     answers?.mood &&
-    (answers?.food?.length ?? 0) > 0 &&
+    answers?.food != null &&
     answers?.time &&
     answers?.budget &&
     lat != null &&

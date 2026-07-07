@@ -4,7 +4,7 @@ function getInitialAnswers() {
   return {
     situation: null,
     mood: null,
-    food: [],
+    food: null,
     time: null,
     budget: null,
   }
