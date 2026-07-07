@@ -2,12 +2,15 @@ function encodeName(name) {
   return encodeURIComponent(String(name ?? '목적지'))
 }
 
-/** 카카오맵 도보 길찾기 (출발 → 식당) */
+/** 카카오맵 도보 길찾기 (출발 → 식당) — 공식: /link/by/walk/출발,lat,lng/도착,lat,lng */
 export function kakaoRouteUrl(fromLat, fromLng, toName, toLat, toLng) {
-  if (!Number.isFinite(fromLat) || !Number.isFinite(toLat)) {
+  if (!Number.isFinite(toLat) || !Number.isFinite(toLng)) return ''
+  if (!Number.isFinite(fromLat) || !Number.isFinite(fromLng)) {
     return kakaoPlaceToUrl(toName, toLat, toLng)
   }
-  return `https://map.kakao.com/link/route/출발,${fromLat},${fromLng},${encodeName(toName)},${toLat},${toLng}`
+  const start = `출발,${fromLat},${fromLng}`
+  const dest = `${encodeName(toName)},${toLat},${toLng}`
+  return `https://map.kakao.com/link/by/walk/${start}/${dest}`
 }
 
 /** 카카오맵 목적지 안내 */

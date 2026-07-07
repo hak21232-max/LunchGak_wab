@@ -33,6 +33,12 @@ function collectFoodTerms(req: RecommendRequest): string[] {
   return [...terms]
 }
 
+/** 1만원 이하 예산 — 카카오 키워드 보강 */
+function addBudgetSearchQueries(queries: Set<string>, req: RecommendRequest): void {
+  if (!req.budget.includes('1만')) return
+  ;['저렴한', '가성비', '만원이하', '점심특선'].forEach((q) => queries.add(q))
+}
+
 /** 블로그 검색용 음식 키워드 (회식 조합) */
 export function resolveFoodSearchKeyword(req: RecommendRequest): string {
   const vibe = resolvePrimaryFoodVibe(req)
@@ -77,6 +83,8 @@ export function buildQuizSearchQueries(req: RecommendRequest): string[] {
     queries.add('술집')
   }
 
+  addBudgetSearchQueries(queries, req)
+
   if (req.situation === '회식') {
     const meatHoesik =
       req.food.some((f) => f.includes('고기')) && !req.food.some((f) => f.includes('자유'))
@@ -103,7 +111,6 @@ export function buildQuizSearchQueries(req: RecommendRequest): string[] {
 
   if (req.situation === '혼밥') queries.add('혼밥 맛집')
   if (req.situation === '함께') queries.add('점심 맛집')
-  if (req.budget.includes('1만')) queries.add('점심특선')
 
   return [...queries].slice(0, 8)
 }
