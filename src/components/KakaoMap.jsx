@@ -8,7 +8,7 @@ const RANK_COLORS = {
   3: '#92400E',
 }
 
-const RANK_SIZES = { 1: 26, 2: 20, 3: 20 }
+const RANK_SIZES = { 1: 24, 2: 18, 3: 18 }
 const RANK_Z_INDEX = { 1: 40, 2: 25, 3: 20 }
 
 const USER_COLOR = '#3B82F6'
@@ -83,20 +83,48 @@ function resolveMarkerPosition(lat, lng, rank, userLat, userLng, usedPositions) 
   return { lat: resolvedLat, lng: resolvedLng }
 }
 
+function createPopupOverlay(kakao, pick, color) {
+  const el = document.createElement('div')
+  el.style.cssText = [
+    'padding:6px 10px',
+    'border-radius:8px',
+    'background:#fff',
+    'color:#1B2A4A',
+    'font-size:11px',
+    'font-weight:700',
+    'white-space:nowrap',
+    `border:2px solid ${color}`,
+    'box-shadow:0 2px 8px rgba(0,0,0,.15)',
+  ].join(';')
+  el.textContent = `${pick.rank}위 ${pick.name} · 도보 ${pick.walk_min}분`
+
+  return new kakao.maps.CustomOverlay({
+    content: el,
+    yAnchor: 2.2,
+    zIndex: (RANK_Z_INDEX[pick.rank] ?? 15) + 10,
+  })
+}
+
+function closeAllPopups(overlays) {
+  overlays.forEach(({ popup }) => popup?.setMap(null))
+}
+
 function clearOverlays(kakao, overlays) {
-  overlays.forEach(({ marker, infowindow, onMarkerClick }) => {
+  overlays.forEach(({ marker, popup, onMarkerClick }) => {
     if (onMarkerClick && kakao?.maps?.event) {
       kakao.maps.event.removeListener(marker, 'click', onMarkerClick)
     }
+    popup?.setMap(null)
     marker?.setMap(null)
-    infowindow?.close()
   })
 }
 
 export default function KakaoMap({ picks, userLat, userLng, onStatusChange }) {
   const mapRef = useRef(null)
   const mapInstanceRef = useRef(null)
+  const kakaoRef = useRef(null)
   const overlaysRef = useRef([])
+  const onMapClickRef = useRef(null)
   const [mapStatus, setMapStatus] = useState('loading')
 
   function updateStatus(status) {
@@ -115,6 +143,7 @@ export default function KakaoMap({ picks, userLat, userLng, onStatusChange }) {
         if (cancelled || !mapRef.current) return
 
         try {
+          kakaoRef.current = kakao
           clearOverlays(kakao, overlaysRef.current)
           overlaysRef.current = []
 
@@ -130,13 +159,20 @@ export default function KakaoMap({ picks, userLat, userLng, onStatusChange }) {
           }
 
           const map = mapInstanceRef.current
+
+          if (onMapClickRef.current) {
+            kakao.maps.event.removeListener(map, 'click', onMapClickRef.current)
+          }
+          onMapClickRef.current = () => closeAllPopups(overlaysRef.current)
+          kakao.maps.event.addListener(map, 'click', onMapClickRef.current)
+
           const bounds = new kakao.maps.LatLngBounds()
           bounds.extend(center)
 
           const userMarker = new kakao.maps.Marker({
             position: center,
             map,
-            image: createCircleMarkerImage(kakao, USER_COLOR, 18),
+            image: createCircleMarkerImage(kakao, USER_COLOR, 16),
             zIndex: 5,
           })
           overlaysRef.current.push({ marker: userMarker })
@@ -160,7 +196,7 @@ export default function KakaoMap({ picks, userLat, userLng, onStatusChange }) {
             bounds.extend(position)
 
             const color = RANK_COLORS[pick.rank] ?? '#6B7280'
-            const size = RANK_SIZES[pick.rank] ?? 28
+            const size = RANK_SIZES[pick.rank] ?? 18
             const marker = new kakao.maps.Marker({
               position,
               map,
@@ -168,18 +204,17 @@ export default function KakaoMap({ picks, userLat, userLng, onStatusChange }) {
               zIndex: RANK_Z_INDEX[pick.rank] ?? 10,
             })
 
-            const infowindow = new kakao.maps.InfoWindow({
-              content: `<div style="padding:8px 10px;font-size:12px;white-space:nowrap;font-weight:600;">${pick.rank}위 ${pick.name} · 도보 ${pick.walk_min}분</div>`,
-            })
+            const popup = createPopupOverlay(kakao, pick, color)
 
             const onMarkerClick = () => {
-              overlaysRef.current.forEach(({ infowindow: iw }) => iw?.close())
-              infowindow.open(map, marker)
+              closeAllPopups(overlaysRef.current)
+              popup.setPosition(position)
+              popup.setMap(map)
             }
 
             kakao.maps.event.addListener(marker, 'click', onMarkerClick)
 
-            overlaysRef.current.push({ marker, infowindow, onMarkerClick })
+            overlaysRef.current.push({ marker, popup, onMarkerClick })
           })
 
           map.setBounds(bounds)
@@ -201,7 +236,12 @@ export default function KakaoMap({ picks, userLat, userLng, onStatusChange }) {
 
     return () => {
       cancelled = true
-      clearOverlays(window.kakao, overlaysRef.current)
+      const kakao = kakaoRef.current
+      if (kakao && mapInstanceRef.current && onMapClickRef.current) {
+        kakao.maps.event.removeListener(mapInstanceRef.current, 'click', onMapClickRef.current)
+        onMapClickRef.current = null
+      }
+      clearOverlays(kakao, overlaysRef.current)
       overlaysRef.current = []
     }
   }, [picks, userLat, userLng])
