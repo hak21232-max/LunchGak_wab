@@ -35,7 +35,7 @@ export default function Home() {
           >
             🍽️ 지금 추천받기
           </button>
-          <Link to="/excluded" className="text-sm text-gray-500 underline">
+          <Link to="/excluded" state={{ from: '/' }} className="text-sm text-gray-500 underline">
             🚫 내 제외식당{excludedCount > 0 ? ` (${excludedCount})` : ''}
           </Link>
         </div>

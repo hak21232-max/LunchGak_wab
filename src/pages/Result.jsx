@@ -156,6 +156,7 @@ export default function Result() {
         </button>
         <Link
           to="/excluded"
+          state={{ from: '/result' }}
           className="flex min-h-[44px] shrink-0 items-center justify-center rounded-xl border border-gray-200 px-3 text-xs font-medium text-gray-600"
         >
           🚫 제외 {excludedCount > 0 ? `(${excludedCount})` : ''}

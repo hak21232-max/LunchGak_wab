@@ -14,8 +14,12 @@ export function buildKakaoPlaceUrl(pick) {
 }
 
 export function normalizePick(pick) {
+  const lat = Number(pick.lat)
+  const lng = Number(pick.lng)
   return {
     ...pick,
+    lat: Number.isFinite(lat) ? lat : pick.lat,
+    lng: Number.isFinite(lng) ? lng : pick.lng,
     blog_count: pick.blog_count ?? pick.blogMentions ?? 0,
     is_exemplary: Boolean(pick.is_exemplary),
     place_url: buildKakaoPlaceUrl(pick),

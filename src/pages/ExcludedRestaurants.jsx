@@ -1,12 +1,21 @@
 import { useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useLocation, useNavigate } from 'react-router-dom'
 import useExcludedRestaurants from '../hooks/useExcludedRestaurants'
 import { usePageMeta } from '../hooks/usePageMeta'
+
+const BACK_PATHS = ['/', '/result']
+
+function resolveBackPath(from) {
+  return BACK_PATHS.includes(from) ? from : '/'
+}
 
 export default function ExcludedRestaurants() {
   const { list, count, removeByIds } = useExcludedRestaurants()
   const [selected, setSelected] = useState(new Set())
   const [msg, setMsg] = useState(null)
+  const location = useLocation()
+  const navigate = useNavigate()
+  const backPath = resolveBackPath(location.state?.from)
 
   usePageMeta({
     title: '내 제외식당',
@@ -116,12 +125,13 @@ export default function ExcludedRestaurants() {
 
       {msg && <p className="mt-3 text-center text-xs text-primary">{msg}</p>}
 
-      <Link
-        to="/"
-        className="mt-8 block text-center text-sm text-gray-500 underline"
+      <button
+        type="button"
+        onClick={() => navigate(backPath)}
+        className="mt-8 block w-full text-center text-sm text-gray-500 underline"
       >
-        ← 홈으로
-      </Link>
+        ← 이전으로
+      </button>
     </div>
   )
 }

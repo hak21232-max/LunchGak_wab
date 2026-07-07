@@ -6,7 +6,11 @@ function openKakaoPlace(url) {
 }
 
 function hasCoords(pick) {
-  return Number.isFinite(pick.lat) && Number.isFinite(pick.lng)
+  return Number.isFinite(Number(pick.lat)) && Number.isFinite(Number(pick.lng))
+}
+
+function hasKakaoRoute(pick) {
+  return hasCoords(pick) || /^\d+$/.test(String(pick.place_id ?? ''))
 }
 
 export default function RestaurantCard({
@@ -23,9 +27,12 @@ export default function RestaurantCard({
   const comment = getPickComment(pick)
   const showTip = shouldShowTip(pick, comment)
   const canNavigate = hasCoords(pick)
+  const canKakaoRoute = hasKakaoRoute(pick)
 
   function handleKakaoRoute() {
-    openExternal(kakaoRouteUrl(userLat, userLng, pick.name, pick.lat, pick.lng))
+    openExternal(
+      kakaoRouteUrl(userLat, userLng, pick.name, pick.lat, pick.lng, pick.place_id),
+    )
   }
 
   function handleNaverRoute() {
@@ -104,7 +111,7 @@ export default function RestaurantCard({
         </li>
       </ul>
 
-      {canNavigate && (
+      {canKakaoRoute && (
         <div className="mt-3 flex gap-2">
           <button
             type="button"
@@ -116,16 +123,18 @@ export default function RestaurantCard({
           >
             🚶 카카오 길찾기
           </button>
-          <button
-            type="button"
-            onClick={(e) => {
-              e.stopPropagation()
-              handleNaverRoute()
-            }}
-            className="min-h-[36px] flex-1 rounded-lg border border-gray-200 py-2 text-xs font-medium text-gray-700"
-          >
-            네이버 길찾기
-          </button>
+          {canNavigate && (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation()
+                handleNaverRoute()
+              }}
+              className="min-h-[36px] flex-1 rounded-lg border border-gray-200 py-2 text-xs font-medium text-gray-700"
+            >
+              네이버 길찾기
+            </button>
+          )}
         </div>
       )}
 
