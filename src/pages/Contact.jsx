@@ -1,28 +1,37 @@
 import ContentPage, { ContentSection } from '../components/ContentPage'
 
-const CONTACT_EMAIL = 'contact@lunchgak.app'
+const CONTACT_EMAIL = 'hak21232@gmail.com'
+const OPEN_KAKAO_URL = 'https://open.kakao.com/me/lunchgak'
 
 export default function Contact() {
   return (
     <ContentPage
       title="문의하기"
-      description="런치각(LunchGAK) 서비스 문의·제휴·오류 신고. contact@lunchgak.app"
+      description="런치각(LunchGAK) 서비스 문의·제휴·오류 신고. 이메일 또는 오픈카톡으로 연락해 주세요."
       path="/contact"
       backTo={null}
     >
       <ContentSection title="연락처">
         <p>
-          서비스 이용 문의, 오류 신고, 제휴·광고 문의는 아래 이메일로 보내 주세요.
-          영업일 기준 3~5일 내 답변을 드리겠습니다.
+          서비스 이용 문의, 오류 신고, 제휴·광고 문의는 아래 이메일 또는 오픈카톡으로
+          보내 주세요. 영업일 기준 3~5일 내 답변을 드리겠습니다.
         </p>
-        <p className="mt-3">
+        <div className="mt-3 flex flex-col gap-2">
           <a
             href={`mailto:${CONTACT_EMAIL}?subject=[런치각] 문의`}
-            className="inline-block rounded-xl bg-primary px-5 py-3 text-sm font-medium text-white"
+            className="inline-block rounded-xl bg-primary px-5 py-3 text-center text-sm font-medium text-white"
           >
             ✉️ {CONTACT_EMAIL}
           </a>
-        </p>
+          <a
+            href={OPEN_KAKAO_URL}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-block rounded-xl bg-accent px-5 py-3 text-center text-sm font-medium text-white"
+          >
+            💬 오픈카톡 문의하기
+          </a>
+        </div>
       </ContentSection>
 
       <ContentSection title="자주 받는 문의">
@@ -54,9 +63,17 @@ export default function Contact() {
         <p className="text-sm text-gray-600">
           서비스명: 런치각 (LunchGAK)
           <br />
-          웹사이트: 직장인 점심·회식 맛집 AI 추천
-          <br />
           문의: {CONTACT_EMAIL}
+          <br />
+          오픈카톡:{' '}
+          <a
+            href={OPEN_KAKAO_URL}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-primary underline"
+          >
+            open.kakao.com/me/lunchgak
+          </a>
         </p>
       </ContentSection>
     </ContentPage>
