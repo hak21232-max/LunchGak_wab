@@ -9,7 +9,15 @@ function hasCoords(pick) {
   return Number.isFinite(pick.lat) && Number.isFinite(pick.lng)
 }
 
-export default function RestaurantCard({ pick, userLat, userLng }) {
+export default function RestaurantCard({
+  pick,
+  userLat,
+  userLng,
+  selectable = false,
+  selected = false,
+  onSelect,
+  isExcluded = false,
+}) {
   const blogCount = pick.blog_count ?? 0
   const mapUrl = pick.place_url
   const comment = getPickComment(pick)
@@ -25,7 +33,36 @@ export default function RestaurantCard({ pick, userLat, userLng }) {
   }
 
   return (
-    <div className="rounded-2xl border border-gray-200 p-4">
+    <div
+      role={selectable ? 'button' : undefined}
+      tabIndex={selectable ? 0 : undefined}
+      onClick={selectable ? onSelect : undefined}
+      onKeyDown={
+        selectable
+          ? (e) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault()
+                onSelect?.()
+              }
+            }
+          : undefined
+      }
+      className={`rounded-2xl border p-4 transition-colors ${
+        selected
+          ? 'border-accent bg-accent/5 ring-2 ring-accent/30'
+          : 'border-gray-200'
+      } ${selectable ? 'cursor-pointer hover:border-accent/50' : ''}`}
+    >
+      {selectable && (
+        <p className="mb-2 text-[11px] font-medium text-gray-500">
+          {selected ? '✓ 선택됨 — 아래 버튼으로 제외 추가' : '탭해서 선택'}
+        </p>
+      )}
+      {isExcluded && (
+        <span className="mb-2 inline-block rounded bg-gray-100 px-2 py-0.5 text-[10px] font-medium text-gray-500">
+          제외 목록에 있음
+        </span>
+      )}
       <p className="text-xs font-medium text-accent">{pick.rank}위</p>
 
       <div className="mt-1 flex flex-wrap items-center gap-2">
@@ -53,7 +90,10 @@ export default function RestaurantCard({ pick, userLat, userLng }) {
           {mapUrl ? (
             <button
               type="button"
-              onClick={() => openKakaoPlace(mapUrl)}
+              onClick={(e) => {
+                e.stopPropagation()
+                openKakaoPlace(mapUrl)
+              }}
               className="truncate text-right font-medium text-primary underline"
             >
               상세페이지 →
@@ -68,14 +108,20 @@ export default function RestaurantCard({ pick, userLat, userLng }) {
         <div className="mt-3 flex gap-2">
           <button
             type="button"
-            onClick={handleKakaoRoute}
+            onClick={(e) => {
+              e.stopPropagation()
+              handleKakaoRoute()
+            }}
             className="min-h-[36px] flex-1 rounded-lg bg-primary py-2 text-xs font-medium text-white"
           >
             🚶 카카오 길찾기
           </button>
           <button
             type="button"
-            onClick={handleNaverRoute}
+            onClick={(e) => {
+              e.stopPropagation()
+              handleNaverRoute()
+            }}
             className="min-h-[36px] flex-1 rounded-lg border border-gray-200 py-2 text-xs font-medium text-gray-700"
           >
             네이버 길찾기

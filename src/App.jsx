@@ -14,7 +14,7 @@ import GuideArticle from './pages/GuideArticle'
 import BlogIndex from './pages/BlogIndex'
 import BlogPost from './pages/BlogPost'
 import LocationSelect from './pages/LocationSelect'
-import SharedResult from './pages/SharedResult'
+import ExcludedRestaurants from './pages/ExcludedRestaurants'
 
 function AppShell() {
   return (
@@ -35,6 +35,7 @@ export default function App() {
               <Route path="/location" element={<LocationSelect />} />
               <Route path="/quiz" element={<Quiz />} />
               <Route path="/result" element={<Result />} />
+              <Route path="/excluded" element={<ExcludedRestaurants />} />
               <Route path="/share" element={<SharedResult />} />
               <Route path="/share/:id" element={<SharedResult />} />
               <Route path="/about" element={<About />} />

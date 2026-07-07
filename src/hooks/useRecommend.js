@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { resolveFunctionUrl } from '../utils/functionsUrl'
 import { normalizeRecommendResponse } from '../utils/normalizePick'
+import { getExcludedPlaceIds } from '../utils/excludedRestaurants'
 
 const MEAL_MAP = {
   점심: '점심 (한끼·점심특선·빠른 식사)',
@@ -92,7 +93,10 @@ const MOCK_DATA = {
   distance: '도보 8분 (반경 600m)',
 }
 
-function buildBody(answers, lat, lng) {
+function buildBody(answers, lat, lng, sessionExcludeIds = []) {
+  const excludePlaceIds = [
+    ...new Set([...getExcludedPlaceIds(), ...sessionExcludeIds.map(String)]),
+  ]
   return {
     meal: MEAL_MAP[answers.meal] ?? answers.meal,
     situation: answers.situation,
@@ -102,6 +106,18 @@ function buildBody(answers, lat, lng) {
     budget: BUDGET_MAP[answers.budget],
     lat,
     lng,
+    ...(excludePlaceIds.length > 0 ? { excludePlaceIds } : {}),
+  }
+}
+
+function filterExcludedPicks(data, excludeIds) {
+  if (!data?.picks?.length || !excludeIds.length) return data
+  const set = new Set(excludeIds.map(String))
+  const picks = data.picks.filter((p) => !set.has(String(p.place_id)))
+  return {
+    ...data,
+    picks,
+    nearby_no_match: picks.length === 0 ? true : data.nearby_no_match,
   }
 }
 
@@ -128,8 +144,17 @@ export default function useRecommend(answers, lat, lng) {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
   const [fetchKey, setFetchKey] = useState(0)
+  const [sessionExcludeIds, setSessionExcludeIds] = useState([])
 
   const retry = useCallback(() => {
+    setFetchKey((k) => k + 1)
+  }, [])
+
+  /** 현재 추천 식당을 제외하고 같은 조건으로 다시 추천 */
+  const recommendAgain = useCallback((currentPickIds) => {
+    const ids = currentPickIds.map(String).filter(Boolean)
+    if (ids.length === 0) return
+    setSessionExcludeIds((prev) => [...new Set([...prev, ...ids])])
     setFetchKey((k) => k + 1)
   }, [])
 
@@ -146,14 +171,19 @@ export default function useRecommend(answers, lat, lng) {
         const endpoint = resolveFunctionsUrl(import.meta.env.VITE_FIREBASE_FUNCTIONS_URL)
 
         if (!endpoint) {
-          if (!cancelled) setData(normalizeRecommendResponse(MOCK_DATA))
+          const excludeIds = [
+            ...new Set([...getExcludedPlaceIds(), ...sessionExcludeIds.map(String)]),
+          ]
+          if (!cancelled) {
+            setData(filterExcludedPicks(normalizeRecommendResponse(MOCK_DATA), excludeIds))
+          }
           return
         }
 
         const response = await fetch(endpoint, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(buildBody(answers, lat, lng)),
+          body: JSON.stringify(buildBody(answers, lat, lng, sessionExcludeIds)),
         })
 
         if (!response.ok) {
@@ -161,7 +191,11 @@ export default function useRecommend(answers, lat, lng) {
         }
 
         const json = await response.json()
-        if (!cancelled) setData(normalizeRecommendResponse(json))
+        const normalized = normalizeRecommendResponse(json)
+        const excludeIds = [
+          ...new Set([...getExcludedPlaceIds(), ...sessionExcludeIds.map(String)]),
+        ]
+        if (!cancelled) setData(filterExcludedPicks(normalized, excludeIds))
       } catch (err) {
         if (!cancelled) {
           setError(err.message ?? '추천을 불러오지 못했어요.')
@@ -177,7 +211,7 @@ export default function useRecommend(answers, lat, lng) {
     return () => {
       cancelled = true
     }
-  }, [answers, lat, lng, fetchKey])
+  }, [answers, lat, lng, fetchKey, sessionExcludeIds])
 
-  return { data, loading, error, retry }
+  return { data, loading, error, retry, recommendAgain }
 }

@@ -1,11 +1,13 @@
 import { Link, useNavigate } from 'react-router-dom'
 import { useQuiz } from '../context/QuizContext'
+import useExcludedRestaurants from '../hooks/useExcludedRestaurants'
 import { usePageMeta, DEFAULT_DESC } from '../hooks/usePageMeta'
 import { GUIDES } from '../content/guides'
 
 export default function Home() {
   const navigate = useNavigate()
   const { resetAnswers } = useQuiz()
+  const { count: excludedCount } = useExcludedRestaurants()
   usePageMeta({ title: null, description: DEFAULT_DESC, path: '/' })
 
   function handleStart() {
@@ -32,6 +34,12 @@ export default function Home() {
         >
           🍽️ 지금 추천받기
         </button>
+        <Link
+          to="/excluded"
+          className="mt-3 inline-block text-sm text-gray-500 underline"
+        >
+          🚫 내 제외식당{excludedCount > 0 ? ` (${excludedCount})` : ''}
+        </Link>
       </section>
 
       <section className="mt-12">

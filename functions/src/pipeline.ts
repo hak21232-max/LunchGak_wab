@@ -103,6 +103,18 @@ function toCoord(value: string | undefined): number {
   return Number.isFinite(n) ? n : NaN
 }
 
+function filterExcludedPlaces(places: KakaoPlace[], excludeIds?: string[]): KakaoPlace[] {
+  if (!excludeIds?.length) return places
+  const set = new Set(excludeIds.map(String))
+  return places.filter((place) => !set.has(String(place.id)))
+}
+
+function parseExcludePlaceIds(data: Record<string, unknown>): string[] | undefined {
+  if (!Array.isArray(data.excludePlaceIds)) return undefined
+  const ids = data.excludePlaceIds.map(String).filter((id) => id.length > 0)
+  return ids.length > 0 ? ids.slice(0, 100) : undefined
+}
+
 function buildNoMatchResponse(
   req: RecommendRequest,
   weatherComment: string | null,
@@ -177,11 +189,13 @@ export async function runRecommendationPipeline(
     40,
   )
 
-  if (rawPlaces.length === 0) {
+  const placesAfterExclude = filterExcludedPlaces(rawPlaces, req.excludePlaceIds)
+
+  if (placesAfterExclude.length === 0) {
     return buildNoMatchResponse(req, weatherComment)
   }
 
-  const categoryFiltered = filterByKakaoCategory(rawPlaces, req)
+  const categoryFiltered = filterByKakaoCategory(placesAfterExclude, req)
   if (categoryFiltered.length === 0) {
     return buildNoMatchResponse(req, weatherComment)
   }
@@ -262,5 +276,6 @@ export function validateRecommendRequest(body: unknown): RecommendRequest {
     budget: String(data.budget),
     lat,
     lng,
+    excludePlaceIds: parseExcludePlaceIds(data),
   }
 }

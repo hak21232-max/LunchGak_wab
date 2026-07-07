@@ -7,6 +7,7 @@ export interface RecommendRequest {
   budget: string
   lat: number
   lng: number
+  excludePlaceIds?: string[]
 }
 
 export interface KakaoPlace {
