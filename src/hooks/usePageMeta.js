@@ -2,7 +2,7 @@ import { useEffect } from 'react'
 
 const SITE_NAME = '런치각 LunchGAK'
 const DEFAULT_DESC =
-  '직장인 점심·회식 맛집 추천 서비스. 5가지 질문에 답하면 GPS·날씨·블로그 후기를 반영해 근처 맛집 3곳을 추천해 드립니다.'
+  '직장인 점심·회식 맛집 추천 서비스. 6가지 질문(점심/저녁·자리·기분·음식·거리·예산)에 답하면 GPS·날씨·블로그 후기를 반영해 근처 맛집 3곳을 추천해 드립니다.'
 
 export function usePageMeta({ title, description = DEFAULT_DESC, path = '', noindex = false }) {
   useEffect(() => {

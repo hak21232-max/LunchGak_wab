@@ -12,7 +12,7 @@ export default function About() {
       <ContentSection title="런치각이란?">
         <p>
           <strong>런치각(LunchGAK)</strong>은 직장인을 위한 점심·회식 맛집 추천 웹앱입니다.
-          &quot;오늘 뭐 먹지?&quot; 고민을 5가지 질문으로 정리하고, 현재 위치·날씨·블로그
+          &quot;오늘 뭐 먹지?&quot; 고민을 6가지 질문으로 정리하고, 현재 위치·날씨·블로그
           후기를 종합해 근처 식당 3곳을 추천합니다.
         </p>
         <p className="mt-2">
@@ -33,7 +33,7 @@ export default function About() {
       <ContentSection title="주요 기능">
         <ContentList
           items={[
-            '5단계 문답(자리·기분·음식·시간·예산) 기반 맞춤 추천',
+            '6단계 문답(점심/저녁·자리·기분·음식·거리·예산) 기반 맞춤 추천',
             'GPS 기반 근처 식당 검색(카카오맵 API)',
             '네이버 블로그 후기·메뉴 언급 분석',
             '날씨(비·더위·추위) 반영 추천',

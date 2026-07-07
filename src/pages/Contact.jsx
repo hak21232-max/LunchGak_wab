@@ -30,7 +30,7 @@ export default function Contact() {
           <div>
             <dt className="font-semibold text-gray-800">추천 결과가 이상해요</dt>
             <dd className="mt-1 text-gray-600">
-              GPS 허용 여부, 선택한 음식·시간 설정을 확인해 주세요. 조건에 맞는 식당이
+              GPS 허용 여부, 선택한 음식·거리 설정을 확인해 주세요. 조건에 맞는 식당이
               없으면 &quot;근처에 맞는 맛집 없음&quot;으로 안내됩니다.
             </dd>
           </div>

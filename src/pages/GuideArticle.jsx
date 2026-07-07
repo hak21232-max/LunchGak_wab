@@ -27,7 +27,7 @@ export default function GuideArticle() {
       <section className="mt-8 rounded-xl bg-primary/5 p-4">
         <p className="text-sm font-semibold text-primary">직접 추천받아 보세요</p>
         <p className="mt-1 text-xs text-gray-600">
-          가이드에서 읽은 기준을 런치각 5문답에 반영하면, 근처 맛집 3곳을 바로 추천해 드립니다.
+          가이드에서 읽은 기준을 런치각 6문답에 반영하면, 근처 맛집 3곳을 바로 추천해 드립니다.
         </p>
         <Link
           to="/quiz"

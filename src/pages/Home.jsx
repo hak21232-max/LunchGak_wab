@@ -21,7 +21,7 @@ export default function Home() {
         <h1 className="text-4xl font-bold text-primary">런치각</h1>
         <p className="text-sm tracking-widest text-accent">LunchGAK</p>
         <p className="mt-3 text-base leading-relaxed text-gray-600">
-          직장인 점심·회식, 5문답으로 끝.
+          직장인 점심·회식, 6가지 질문으로 끝.
           <br />
           GPS·날씨·블로그 후기까지 반영해 근처 맛집 3곳을 추천합니다.
         </p>
@@ -42,8 +42,8 @@ export default function Home() {
               1
             </span>
             <span>
-              <strong className="text-gray-800">5가지 질문</strong> — 자리, 기분, 음식, 시간, 예산을
-              선택합니다.
+              <strong className="text-gray-800">6가지 질문</strong> — 점심/저녁, 자리, 기분,
+              음식, 거리, 예산을 선택합니다.
             </span>
           </li>
           <li className="flex gap-3">
@@ -101,6 +101,13 @@ export default function Home() {
             <dt className="font-semibold text-gray-800">위치 정보가 필요한가요?</dt>
             <dd className="mt-1 text-gray-600">
               근처 식당 추천을 위해 GPS 허용을 권장합니다. 위치는 추천 처리에만 사용됩니다.
+            </dd>
+          </div>
+          <div>
+            <dt className="font-semibold text-gray-800">거리는 어떻게 정하나요?</dt>
+            <dd className="mt-1 text-gray-600">
+              도보 4분(300m), 8분(600m), 13분(1km) 중에서 고릅니다. 가까울수록 후보가
+              정확하고, 멀수록 선택지가 넓어집니다.
             </dd>
           </div>
           <div>
