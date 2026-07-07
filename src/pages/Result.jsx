@@ -166,7 +166,9 @@ export default function Result() {
         <p className="mt-2 text-center text-xs text-primary">{shareMsg}</p>
       )}
 
-      <KakaoMap picks={data.picks} userLat={lat} userLng={lng} />
+      <div className="mt-6">
+        <KakaoMap picks={data.picks} userLat={lat} userLng={lng} />
+      </div>
 
       <p className="mt-4 text-lg font-bold text-primary">{data.greeting}</p>
       <p className="mt-2 text-sm text-gray-500">{data.recommendation_reason}</p>

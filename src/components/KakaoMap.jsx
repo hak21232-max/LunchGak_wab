@@ -2,13 +2,14 @@ import { useEffect, useRef, useState } from 'react'
 import { getCurrentOrigin, loadKakaoMap } from '../utils/loadKakaoMap'
 import { buildKakaoPlaceUrl } from '../utils/normalizePick'
 
+const MARKER_SIZE = 22
+
 const RANK_COLORS = {
   1: '#C9A84C',
   2: '#9CA3AF',
   3: '#92400E',
 }
 
-const RANK_SIZES = { 1: 24, 2: 18, 3: 18 }
 const RANK_Z_INDEX = { 1: 40, 2: 25, 3: 20 }
 
 const USER_COLOR = '#3B82F6'
@@ -83,7 +84,7 @@ function resolveMarkerPosition(lat, lng, rank, userLat, userLng, usedPositions) 
   return { lat: resolvedLat, lng: resolvedLng }
 }
 
-function createPopupOverlay(kakao, pick, color) {
+function createPopupOverlay(kakao, text, color, zIndex = 15) {
   const el = document.createElement('div')
   el.style.cssText = [
     'padding:6px 10px',
@@ -96,13 +97,22 @@ function createPopupOverlay(kakao, pick, color) {
     `border:2px solid ${color}`,
     'box-shadow:0 2px 8px rgba(0,0,0,.15)',
   ].join(';')
-  el.textContent = `${pick.rank}위 ${pick.name} · 도보 ${pick.walk_min}분`
+  el.textContent = text
 
   return new kakao.maps.CustomOverlay({
     content: el,
     yAnchor: 2.2,
-    zIndex: (RANK_Z_INDEX[pick.rank] ?? 15) + 10,
+    zIndex,
   })
+}
+
+function createPickPopupOverlay(kakao, pick, color) {
+  return createPopupOverlay(
+    kakao,
+    `${pick.rank}위 ${pick.name} · 도보 ${pick.walk_min}분`,
+    color,
+    (RANK_Z_INDEX[pick.rank] ?? 15) + 10,
+  )
 }
 
 function closeAllPopups(overlays) {
@@ -172,10 +182,17 @@ export default function KakaoMap({ picks, userLat, userLng, onStatusChange }) {
           const userMarker = new kakao.maps.Marker({
             position: center,
             map,
-            image: createCircleMarkerImage(kakao, USER_COLOR, 16),
+            image: createCircleMarkerImage(kakao, USER_COLOR, MARKER_SIZE),
             zIndex: 5,
           })
-          overlaysRef.current.push({ marker: userMarker })
+          const userPopup = createPopupOverlay(kakao, '내위치', USER_COLOR, 45)
+          const onUserClick = () => {
+            closeAllPopups(overlaysRef.current)
+            userPopup.setPosition(center)
+            userPopup.setMap(map)
+          }
+          kakao.maps.event.addListener(userMarker, 'click', onUserClick)
+          overlaysRef.current.push({ marker: userMarker, popup: userPopup, onMarkerClick: onUserClick })
 
           const mapPicks = [...picks]
             .filter((pick) => isValidCoord(pick.lat, pick.lng))
@@ -196,15 +213,14 @@ export default function KakaoMap({ picks, userLat, userLng, onStatusChange }) {
             bounds.extend(position)
 
             const color = RANK_COLORS[pick.rank] ?? '#6B7280'
-            const size = RANK_SIZES[pick.rank] ?? 18
             const marker = new kakao.maps.Marker({
               position,
               map,
-              image: createCircleMarkerImage(kakao, color, size),
+              image: createCircleMarkerImage(kakao, color, MARKER_SIZE),
               zIndex: RANK_Z_INDEX[pick.rank] ?? 10,
             })
 
-            const popup = createPopupOverlay(kakao, pick, color)
+            const popup = createPickPopupOverlay(kakao, pick, color)
 
             const onMarkerClick = () => {
               closeAllPopups(overlaysRef.current)
