@@ -3,7 +3,7 @@ export interface RecommendRequest {
   situation: string
   mood: string
   food: string[]
-  time: string
+  distance: string
   budget: string
   lat: number
   lng: number

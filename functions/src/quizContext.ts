@@ -207,10 +207,10 @@ function shortBudget(budget: string): string {
   return ''
 }
 
-function shortTime(time: string): string {
-  if (time.includes('30분') || time.includes('400m')) return '점심 30분 안에'
-  if (time.includes('1시간 이상') || time.includes('1시간이상') || time.includes('1km')) return '시간 여유로'
-  if (time.includes('1시간') || time.includes('700m')) return '1시간 여유로'
+function shortDistance(distance: string): string {
+  if (distance.includes('300') || distance.includes('30분') || distance.includes('400m')) return '점심 30분 안에'
+  if (distance.includes('1000') || distance.includes('1km') || distance.includes('1시간 이상') || distance.includes('1시간이상')) return '시간 여유로'
+  if (distance.includes('600') || distance.includes('700m') || distance.includes('1시간')) return '1시간 여유로'
   return ''
 }
 
@@ -235,7 +235,7 @@ export function buildQuizSummary(req: RecommendRequest): string {
     `자리=${req.situation}`,
     `기분=${req.mood}`,
     `음식=${req.food.join('+')}`,
-    `시간=${req.time}`,
+    `거리=${req.distance}`,
     `예산=${req.budget}`,
   ].join(' | ')
 }
@@ -273,7 +273,7 @@ export function reasonLinksToQuiz(
   const foodKeywords = foodKeywordsFromReq(req, candidate)
   if (foodKeywords.some((kw) => reason.includes(kw))) hits += 1
 
-  if (req.time.includes('30분') && /30분|점심|빠르|가까/.test(reason)) hits += 1
+  if (req.distance.includes('300') && /30분|점심|빠르|가까/.test(reason)) hits += 1
 
   return hits >= 2
 }
@@ -287,7 +287,7 @@ export function buildQuizLinkedReason(
   const menu = blogMenus || inferMenuHint(req, candidate)
   const connection = foodConnectionPhrase(req, candidate)
   const mood = shortMood(req.mood)
-  const time = shortTime(req.time)
+  const time = shortDistance(req.distance)
   const budget = shortBudget(req.budget)
   const shopType = formatAllowedMenus(candidate.category_name)
   const kw = candidate.blogTopKeywords.slice(0, 2).join('·')

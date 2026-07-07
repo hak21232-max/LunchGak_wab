@@ -6,7 +6,7 @@ function getInitialAnswers() {
     situation: null,
     mood: null,
     food: null,
-    time: null,
+    distance: null,
     budget: null,
   }
 }

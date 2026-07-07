@@ -61,15 +61,15 @@ const QUESTIONS = [
     ],
   },
   {
-    id: 'time',
-    title: '시간이 얼마나 있어요?',
-    sub: '',
+    id: 'distance',
+    title: '얼마나 이동할 수 있어요?',
+    sub: '가까울수록 더 정확하게 추천해요',
     gridCols: 2,
     multi: false,
     options: [
-      { emoji: '⚡', label: '30분 이내', desc: '도보 5분, 빠른 곳', val: '30분이내' },
-      { emoji: '🕐', label: '1시간 정도', desc: '여유 있게', val: '1시간정도' },
-      { emoji: '🕑', label: '1시간 이상', desc: '멀어도 OK', val: '1시간이상' },
+      { emoji: '🚶', label: '바로 근처', desc: '도보 4분 (300m)', val: '300m' },
+      { emoji: '🗺️', label: '걸어서', desc: '도보 8분 (600m)', val: '600m' },
+      { emoji: '🏃', label: '조금 멀어도 OK', desc: '도보 13분 (1km)', val: '1000m' },
     ],
   },
   {

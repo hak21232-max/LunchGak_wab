@@ -87,11 +87,11 @@ const MEAL_CATEGORY_KEYWORDS = [
   '브런치',
 ]
 
-export function parseRadiusMeters(time: string): number {
-  if (time.includes('1시간 이상') || time.includes('1시간이상') || time.includes('1km')) return 1000
-  if (time.includes('30분') || time.includes('400m')) return 400
-  if (time.includes('1시간') || time.includes('700m')) return 700
-  return 700
+export function parseRadiusMeters(distance: string): number {
+  if (distance.includes('1000') || distance.includes('1km')) return 1000
+  if (distance.includes('600')) return 600
+  if (distance.includes('300')) return 300
+  return 600 // 기본값
 }
 
 export function estimateWalkMin(distanceM: number): number {

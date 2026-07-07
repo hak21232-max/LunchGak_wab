@@ -25,10 +25,10 @@ const FOOD_MAP = {
   자유: '날씨와 기분 고려해 AI가 자유 선택',
 }
 
-const TIME_MAP = {
-  '30분이내': '30분 이내 (반경 400m)',
-  '1시간정도': '1시간 정도 (반경 700m)',
-  '1시간이상': '1시간 이상 (반경 1km)',
+const DISTANCE_MAP = {
+  '300m': '도보 4분 (반경 300m)',
+  '600m': '도보 8분 (반경 600m)',
+  '1000m': '도보 13분 (반경 1km)',
 }
 
 const BUDGET_MAP = {
@@ -89,6 +89,7 @@ const MOCK_DATA = {
     },
   ],
   weather_comment: null,
+  distance: '도보 8분 (반경 600m)',
 }
 
 function buildBody(answers, lat, lng) {
@@ -97,7 +98,7 @@ function buildBody(answers, lat, lng) {
     situation: answers.situation,
     mood: MOOD_MAP[answers.mood],
     food: answers.food ? [FOOD_MAP[answers.food] ?? answers.food] : [],
-    time: TIME_MAP[answers.time],
+    distance: DISTANCE_MAP[answers.distance],
     budget: BUDGET_MAP[answers.budget],
     lat,
     lng,
@@ -110,7 +111,7 @@ function isReady(answers, lat, lng) {
     answers?.situation &&
     answers?.mood &&
     answers?.food != null &&
-    answers?.time &&
+    answers?.distance != null &&
     answers?.budget &&
     lat != null &&
     lng != null

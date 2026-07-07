@@ -103,11 +103,11 @@ function passesFoodFilter(place: KakaoPlace, foodPrefs: string[]): boolean {
   return foodMatchScore(place.category_name, foodPrefs, place.place_name) > 0
 }
 
-/** Q4 시간 — 반경 내 거리 */
-function passesTimeFilter(place: KakaoPlace, time: string): boolean {
+/** Q4 거리 — 반경 내 거리 */
+function passesDistanceFilter(place: KakaoPlace, distance: string): boolean {
   const distanceM = Number(place.distance)
   if (Number.isNaN(distanceM)) return true
-  return distanceM <= parseRadiusMeters(time)
+  return distanceM <= parseRadiusMeters(distance)
 }
 
 /** Q5 예산 */
@@ -131,7 +131,7 @@ function passesQuizFilters(
   level: FilterLevel,
 ): boolean {
   if (!passesSituationFilter(place, req)) return false
-  if (!passesTimeFilter(place, req.time)) return false
+  if (!passesDistanceFilter(place, req.distance)) return false
   if (!passesBudgetFilter(place, req.budget)) return false
 
   if (level === 'core') return true

@@ -162,7 +162,7 @@ export async function runRecommendationPipeline(
   req: RecommendRequest,
   secrets: PipelineSecrets,
 ): Promise<RecommendResponse> {
-  const radius = parseRadiusMeters(req.time)
+  const radius = parseRadiusMeters(req.distance)
 
   const weather = await fetchWeather(req.lat, req.lng, secrets.openWeatherApiKey)
   const weatherComment = buildWeatherComment(weather)
@@ -245,12 +245,12 @@ export function validateRecommendRequest(body: unknown): RecommendRequest {
     !data.situation ||
     !data.mood ||
     food.length === 0 ||
-    !data.time ||
+    !data.distance ||
     !data.budget ||
     Number.isNaN(lat) ||
     Number.isNaN(lng)
   ) {
-    throw new Error('필수 항목(meal, situation, mood, food, time, budget, lat, lng)이 필요해요.')
+    throw new Error('필수 항목(meal, situation, mood, food, distance, budget, lat, lng)이 필요해요.')
   }
 
   return {
@@ -258,7 +258,7 @@ export function validateRecommendRequest(body: unknown): RecommendRequest {
     situation: String(data.situation),
     mood: String(data.mood),
     food,
-    time: String(data.time),
+    distance: String(data.distance),
     budget: String(data.budget),
     lat,
     lng,
