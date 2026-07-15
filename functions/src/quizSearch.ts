@@ -1,3 +1,4 @@
+import { hasSituation } from './quizAnswers'
 import type { RecommendRequest } from './types'
 
 function collectFoodTerms(req: RecommendRequest): string[] {
@@ -60,7 +61,7 @@ export function buildBlogSearchQuery(placeName: string, req: RecommendRequest): 
   const meatHoesik =
     req.food.some((f) => f.includes('고기')) && !req.food.some((f) => f.includes('자유'))
 
-  if (req.situation === '회식') {
+  if (hasSituation(req, '회식')) {
     if (meatHoesik) {
       return food ? `${placeName} ${food}` : placeName
     }
@@ -85,7 +86,7 @@ export function buildQuizSearchQueries(req: RecommendRequest): string[] {
 
   addBudgetSearchQueries(queries, req)
 
-  if (req.situation === '회식') {
+  if (hasSituation(req, '회식')) {
     const meatHoesik =
       req.food.some((f) => f.includes('고기')) && !req.food.some((f) => f.includes('자유'))
     for (const term of collectFoodTerms(req)) {
@@ -100,8 +101,8 @@ export function buildQuizSearchQueries(req: RecommendRequest): string[] {
 
   if (req.food.some((f) => f.includes('자유'))) {
     queries.add('맛집')
-    if (req.situation === '혼밥') queries.add('혼밥')
-    if (req.situation === '함께') queries.add('점심 맛집')
+    if (hasSituation(req, '혼밥')) queries.add('혼밥')
+    if (hasSituation(req, '함께')) queries.add('점심 맛집')
     return [...queries].slice(0, 5)
   }
 
@@ -109,8 +110,8 @@ export function buildQuizSearchQueries(req: RecommendRequest): string[] {
     queries.add(term)
   }
 
-  if (req.situation === '혼밥') queries.add('혼밥 맛집')
-  if (req.situation === '함께') queries.add('점심 맛집')
+  if (hasSituation(req, '혼밥')) queries.add('혼밥 맛집')
+  if (hasSituation(req, '함께')) queries.add('점심 맛집')
 
   return [...queries].slice(0, 8)
 }
@@ -121,14 +122,21 @@ export function resolveFoodVibe(req: RecommendRequest): string {
   return req.food.join(' + ')
 }
 
+export function resolveAllFoodVibes(req: RecommendRequest): string[] {
+  if (req.food.some((f) => f.includes('자유'))) return ['자유']
+
+  const vibes = new Set<string>()
+  for (const f of req.food) {
+    if (f.includes('매운')) vibes.add('매운')
+    if (f.includes('국물')) vibes.add('국물')
+    if (f.includes('면')) vibes.add('면류')
+    if (f.includes('밥')) vibes.add('밥류')
+    if (f.includes('가벼')) vibes.add('가벼운')
+    if (f.includes('고기')) vibes.add('고기')
+  }
+  return [...vibes]
+}
+
 export function resolvePrimaryFoodVibe(req: RecommendRequest): string {
-  const f = req.food.find((x) => !x.includes('자유')) ?? req.food[0] ?? ''
-  if (f.includes('매운')) return '매운'
-  if (f.includes('국물')) return '국물'
-  if (f.includes('면')) return '면류'
-  if (f.includes('밥')) return '밥류'
-  if (f.includes('고기')) return '고기'
-  if (f.includes('가벼')) return '가벼운'
-  if (f.includes('자유')) return '자유'
-  return f
+  return resolveAllFoodVibes(req)[0] ?? ''
 }

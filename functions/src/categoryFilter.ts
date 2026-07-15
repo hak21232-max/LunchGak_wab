@@ -1,4 +1,4 @@
-import { resolvePrimaryFoodVibe } from './quizSearch'
+import { resolveAllFoodVibes } from './quizSearch'
 import type { KakaoPlace, RecommendRequest } from './types'
 
 const EXCLUDE_ALWAYS = /편의점|마트|슈퍼|약국|병원|베이커리|디저트|카페/
@@ -12,8 +12,14 @@ export function filterByKakaoCategory(
     return places.filter((p) => !EXCLUDE_ALWAYS.test(p.category_name))
   }
 
-  const vibe = resolvePrimaryFoodVibe(req)
-  return places.filter((p) => passesCategoryForVibe(p.category_name, vibe))
+  const vibes = resolveAllFoodVibes(req)
+  if (vibes.length === 0) {
+    return places.filter((p) => !EXCLUDE_ALWAYS.test(p.category_name))
+  }
+  if (vibes.length === 1) {
+    return places.filter((p) => passesCategoryForVibe(p.category_name, vibes[0]))
+  }
+  return places.filter((p) => vibes.some((v) => passesCategoryForVibe(p.category_name, v)))
 }
 
 function passesCategoryForVibe(category: string, vibe: string): boolean {

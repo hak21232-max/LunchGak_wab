@@ -93,17 +93,32 @@ const MOCK_DATA = {
   distance: '도보 8분 (반경 600m)',
 }
 
+
+function ensureArray(value) {
+  if (Array.isArray(value)) return value
+  if (value == null || value === '') return []
+  return [value]
+}
+
+function mapValues(values, map) {
+  return ensureArray(values).map((v) => map[v] ?? v)
+}
+
+function hasSelections(value) {
+  return ensureArray(value).length > 0
+}
+
 function buildBody(answers, lat, lng, sessionExcludeIds = []) {
   const excludePlaceIds = [
     ...new Set([...getExcludedPlaceIds(), ...sessionExcludeIds.map(String)]),
   ]
   return {
     meal: MEAL_MAP[answers.meal] ?? answers.meal,
-    situation: answers.situation,
-    mood: MOOD_MAP[answers.mood],
-    food: answers.food ? [FOOD_MAP[answers.food] ?? answers.food] : [],
-    distance: DISTANCE_MAP[answers.distance],
-    budget: BUDGET_MAP[answers.budget],
+    situation: ensureArray(answers.situation),
+    mood: mapValues(answers.mood, MOOD_MAP),
+    food: mapValues(answers.food, FOOD_MAP),
+    distance: ensureArray(answers.distance).map((v) => DISTANCE_MAP[v] ?? v),
+    budget: ensureArray(answers.budget).map((v) => BUDGET_MAP[v] ?? v),
     lat,
     lng,
     ...(excludePlaceIds.length > 0 ? { excludePlaceIds } : {}),
@@ -124,11 +139,11 @@ function filterExcludedPicks(data, excludeIds) {
 function isReady(answers, lat, lng) {
   return (
     answers?.meal &&
-    answers?.situation &&
-    answers?.mood &&
-    answers?.food != null &&
-    answers?.distance != null &&
-    answers?.budget &&
+    hasSelections(answers?.situation) &&
+    hasSelections(answers?.mood) &&
+    hasSelections(answers?.food) &&
+    hasSelections(answers?.distance) &&
+    hasSelections(answers?.budget) &&
     lat != null &&
     lng != null
   )

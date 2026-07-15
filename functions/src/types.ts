@@ -1,7 +1,7 @@
 export interface RecommendRequest {
   meal: string
-  situation: string
-  mood: string
+  situation: string[]
+  mood: string[]
   food: string[]
   distance: string
   budget: string

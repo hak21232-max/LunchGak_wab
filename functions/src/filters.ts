@@ -46,15 +46,26 @@ function matchesKeywords(text: string, keywords: string[]): boolean {
   return keywords.some((keyword) => text.includes(keyword))
 }
 
-/** Q1 자리 — 상황·식사 가능 업종 */
+/** Q1 자리 — 상황·식사 가능 업종 (복수 자리 중 하나라도 맞으면 통과) */
 function passesSituationFilter(place: KakaoPlace, req: RecommendRequest): boolean {
-  if (!isEligibleMealPlace(place.category_name, req.situation, req.meal)) {
+  return req.situation.some((situation) =>
+    passesSingleSituation(place, req.meal, situation, req.situation),
+  )
+}
+
+function passesSingleSituation(
+  place: KakaoPlace,
+  meal: string,
+  situation: string,
+  allSituations: string[],
+): boolean {
+  if (!isEligibleMealPlace(place.category_name, situation, meal, allSituations)) {
     return false
   }
 
   const category = place.category_name
 
-  if (req.situation === '회식') {
+  if (situation === '회식') {
     return matchesKeywords(category, [
       '고기',
       '고깃',
@@ -71,30 +82,36 @@ function passesSituationFilter(place: KakaoPlace, req: RecommendRequest): boolea
     ])
   }
 
-  if (req.situation === '혼밥') {
+  if (situation === '혼밥') {
     if (matchesKeywords(category, ['한정식', '오마카세', '코스', '파인'])) return false
   }
 
-  if (req.situation === '함께') {
+  if (situation === '함께') {
     if (matchesKeywords(category, ['오마카세', '코스'])) return false
   }
 
   return true
 }
 
-/** Q2 기분 */
-function passesMoodFilter(place: KakaoPlace, mood: string): boolean {
+/** Q2 기분 — 복수 선택 시 제외 규칙은 모두 적용, 키워드는 하나라도 맞으면 통과 */
+function passesMoodFilter(place: KakaoPlace, moods: string[]): boolean {
+  if (moods.length === 0) return true
+
   const text = placeText(place)
 
-  const excluded = MOOD_EXCLUDED[mood]
-  if (excluded && matchesKeywords(text, excluded)) return false
+  for (const mood of moods) {
+    const excluded = MOOD_EXCLUDED[mood]
+    if (excluded && matchesKeywords(text, excluded)) return false
+  }
 
-  if (NEUTRAL_MOODS.has(mood)) return true
+  const nonNeutral = moods.filter((mood) => !NEUTRAL_MOODS.has(mood))
+  if (nonNeutral.length === 0) return true
 
-  const keywords = MOOD_KEYWORDS[mood]
-  if (!keywords) return true
-
-  return matchesKeywords(text, keywords)
+  return nonNeutral.some((mood) => {
+    const keywords = MOOD_KEYWORDS[mood]
+    if (!keywords) return true
+    return matchesKeywords(text, keywords)
+  })
 }
 
 /** Q3 음식 */

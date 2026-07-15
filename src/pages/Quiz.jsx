@@ -21,9 +21,9 @@ const QUESTIONS = [
   {
     id: 'situation',
     title: '어떤 자리예요?',
-    sub: '상황에 맞는 식당을 찾아드릴게요',
+    sub: '복수 선택 가능 · 상황에 맞는 식당을 찾아드릴게요',
     gridCols: 2,
-    multi: false,
+    multi: true,
     options: [
       { emoji: '🍱', label: '혼밥', desc: '혼자 빠르게', val: '혼밥' },
       { emoji: '👥', label: '함께', desc: '2~4명', val: '함께' },
@@ -33,9 +33,9 @@ const QUESTIONS = [
   {
     id: 'mood',
     title: '오늘 기분이 어때요?',
-    sub: '추천 방향이 달라져요',
+    sub: '복수 선택 가능 · 추천 방향이 달라져요',
     gridCols: 2,
-    multi: false,
+    multi: true,
     options: [
       { emoji: '🎉', label: '기분 좋다', desc: '새로운 메뉴 도전', val: '기분좋음' },
       { emoji: '😤', label: '스트레스', desc: '매운·자극적인 것', val: '스트레스' },
@@ -47,9 +47,9 @@ const QUESTIONS = [
   {
     id: 'food',
     title: '뭐가 땡기세요?',
-    sub: '선택한 음식으로 식당을 필터링해요',
+    sub: '복수 선택 가능 · 선택한 음식으로 식당을 필터링해요',
     gridCols: 2,
-    multi: false,
+    multi: true,
     options: [
       { emoji: '🌶️', label: '매운', val: '매운' },
       { emoji: '🍲', label: '국물', val: '국물' },
@@ -63,9 +63,9 @@ const QUESTIONS = [
   {
     id: 'distance',
     title: '얼마나 이동할 수 있어요?',
-    sub: '가까울수록 더 정확하게 추천해요',
+    sub: '복수 선택 가능 · 넓게 고르면 더 많은 후보를 찾아요',
     gridCols: 2,
-    multi: false,
+    multi: true,
     options: [
       { emoji: '🚶', label: '바로 근처', desc: '도보 4분 (300m)', val: '300m' },
       { emoji: '🗺️', label: '걸어서', desc: '도보 8분 (600m)', val: '600m' },
@@ -75,9 +75,9 @@ const QUESTIONS = [
   {
     id: 'budget',
     title: '예산은요?',
-    sub: '1인 기준',
+    sub: '복수 선택 가능 · 1인 기준',
     gridCols: 3,
-    multi: false,
+    multi: true,
     options: [
       { emoji: '💸', label: '1만 이하', desc: '가성비', val: '1만이하' },
       { emoji: '💳', label: '1~2만', desc: '적당히', val: '1~2만' },
@@ -121,7 +121,16 @@ export default function Quiz() {
 
   function handleSelect(option) {
     if (question.multi) {
-      const current = answers[question.id] ?? []
+      let current = answers[question.id] ?? []
+
+      if (question.id === 'food') {
+        if (option.val === '자유') {
+          setAnswer('food', current.includes('자유') ? [] : ['자유'])
+          return
+        }
+        current = current.filter((v) => v !== '자유')
+      }
+
       const next = current.includes(option.val)
         ? current.filter((v) => v !== option.val)
         : [...current, option.val]

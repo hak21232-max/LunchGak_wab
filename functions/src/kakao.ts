@@ -103,8 +103,10 @@ export function isEligibleMealPlace(
   categoryName: string,
   situation: string,
   meal: string,
+  allSituations: string[] = [],
 ): boolean {
   const category = categoryName ?? ''
+  const situations = allSituations.length > 0 ? allSituations : situation ? [situation] : []
 
   if (ALWAYS_EXCLUDED.some((word) => category.includes(word))) return false
   if (SNACK_DESSERT_KEYWORDS.some((word) => category.includes(word))) return false
@@ -112,7 +114,7 @@ export function isEligibleMealPlace(
   // 간식 카테고리(분식 제외) — 베이커리·디저트류
   if (category.includes('간식') && !category.includes('분식')) return false
 
-  const isDinner = meal.includes('저녁') || situation === '회식'
+  const isDinner = meal.includes('저녁') || situations.includes('회식')
 
   if (CAFE_KEYWORDS.some((word) => category.includes(word))) {
     return false
@@ -298,7 +300,12 @@ export function weatherMatchScore(categoryName: string, temp: number): number {
   return 4
 }
 
-export function situationBonus(categoryName: string, situation: string): number {
+export function situationBonus(categoryName: string, situations: string[]): number {
+  if (situations.length === 0) return 4
+  return Math.max(...situations.map((situation) => singleSituationBonus(categoryName, situation)))
+}
+
+function singleSituationBonus(categoryName: string, situation: string): number {
   if (situation === '회식') {
     return ['고기', '주점', '호프', '삼겹', '갈비', '회', '한정식'].some((kw) =>
       categoryName.includes(kw),

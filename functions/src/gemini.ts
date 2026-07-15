@@ -5,6 +5,7 @@ import {
   reasonLinksToQuiz,
 } from './quizContext'
 import { formatBlogMenuBlock } from './naver'
+import { formatSituations } from './quizAnswers'
 import { resolveFoodVibe } from './quizSearch'
 import type {
   EnrichedCandidate,
@@ -251,10 +252,10 @@ function buildDistinctReason(
 
   const variants = [
     buildQuizLinkedReason(req, candidate, rank),
-    `${req.situation}에 ${req.food[0]?.includes('매운') ? '매운' : ''} ${menuLabel} — ${candidate.place_name}, 블로그 후기 기준 ${rank}순위.`,
+    `${formatSituations(req)}에 ${req.food[0]?.includes('매운') ? '매운' : ''} ${menuLabel} — ${candidate.place_name}, 블로그 후기 기준 ${rank}순위.`,
     blogMenus
       ? `블로그에 '${blogMenus}' 언급 많은 ${candidate.place_name}. ${req.food.join(', ')} 조건에 맞아요.`
-      : `${candidate.place_name} — ${req.situation}, 도보 ${candidate.walkMin}분.`,
+      : `${candidate.place_name} — ${formatSituations(req)}, 도보 ${candidate.walkMin}분.`,
     kw ? `'${kw}' 후기도 있는 ${candidate.place_name}. ${menuLabel} 중심이에요.` : '',
   ].filter(Boolean)
 
@@ -385,8 +386,8 @@ export function fallbackGeminiOutput(
   const usedReasonKeys = new Set<string>()
 
   return {
-    greeting: `${req.mood.includes('스트레스') ? '스트레스' : '오늘'}도 각 잡고 먹자 🍽️`,
-    recommendation_reason: `${req.situation} · ${req.food.join(', ')} 조건에 맞고, 블로그 호감도 좋은 곳 위주로 골랐어요.`,
+    greeting: `${req.mood.some((m) => m.includes('스트레스')) ? '스트레스' : '오늘'}도 각 잡고 먹자 🍽️`,
+    recommendation_reason: `${formatSituations(req)} · ${req.food.join(', ')} 조건에 맞고, 블로그 호감도 좋은 곳 위주로 골랐어요.`,
     weather_comment: weather ? `지금 ${Math.round(weather.temp)}°C — ${weather.description}` : null,
     picks: top3.map((p, index) => ({
       rank: index + 1,

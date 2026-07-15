@@ -1,3 +1,4 @@
+import { formatMoods, formatSituations, hasSituation } from './quizAnswers'
 import type { EnrichedCandidate, RecommendRequest } from './types'
 
 const MOOD_PHRASES: Record<string, string> = {
@@ -193,9 +194,11 @@ function shortCategoryLabel(categoryName: string): string {
   return parts.slice(1).join(' > ') || parts[0] || '음식'
 }
 
-function shortMood(mood: string): string {
-  for (const [key, phrase] of Object.entries(MOOD_PHRASES)) {
-    if (mood.includes(key)) return phrase
+function shortMood(moods: string[]): string {
+  for (const mood of moods) {
+    for (const [key, phrase] of Object.entries(MOOD_PHRASES)) {
+      if (mood.includes(key)) return phrase
+    }
   }
   return '오늘 컨디션에 맞는'
 }
@@ -232,8 +235,8 @@ function foodConnectionPhrase(req: RecommendRequest, candidate: EnrichedCandidat
 export function buildQuizSummary(req: RecommendRequest): string {
   return [
     `식사=${req.meal}`,
-    `자리=${req.situation}`,
-    `기분=${req.mood}`,
+    `자리=${formatSituations(req)}`,
+    `기분=${formatMoods(req)}`,
     `음식=${req.food.join('+')}`,
     `거리=${req.distance}`,
     `예산=${req.budget}`,
@@ -262,12 +265,16 @@ export function reasonLinksToQuiz(
 ): boolean {
   let hits = 0
 
-  if (req.situation && reason.includes(req.situation)) hits += 1
-  if (req.situation === '혼밥' && /혼밥|혼자|1인/.test(reason)) hits += 1
-  if (req.situation === '함께' && /함께|단체|2인|3인|4인/.test(reason)) hits += 1
+  for (const situation of req.situation) {
+    if (situation && reason.includes(situation)) hits += 1
+    if (situation === '혼밥' && /혼밥|혼자|1인/.test(reason)) hits += 1
+    if (situation === '함께' && /함께|단체|2인|3인|4인/.test(reason)) hits += 1
+  }
 
-  for (const key of Object.keys(MOOD_PHRASES)) {
-    if (req.mood.includes(key) && reason.includes(key)) hits += 1
+  for (const mood of req.mood) {
+    for (const key of Object.keys(MOOD_PHRASES)) {
+      if (mood.includes(key) && reason.includes(key)) hits += 1
+    }
   }
 
   const foodKeywords = foodKeywordsFromReq(req, candidate)
@@ -292,12 +299,15 @@ export function buildQuizLinkedReason(
   const shopType = formatAllowedMenus(candidate.category_name)
   const kw = candidate.blogTopKeywords.slice(0, 2).join('·')
 
+  const situations = formatSituations(req)
+  const moodLabel = req.mood.some((m) => m.includes('스트레스')) ? '스트레스 받는 날' : '오늘'
+
   const templates = [
     blogMenus
-      ? `${req.situation}에 ${req.food[0]?.includes('매운') ? '매운' : ''} ${blogMenus} — ${candidate.place_name}, 블로그 후기에서 확인된 메뉴예요.${time ? ` ${time} OK` : ''}`
-      : `${req.situation}에 ${connection} — ${candidate.place_name}은 ${shopType}인데 ${mood} 한 끼로 괜찮아요.${time ? ` ${time} 다녀오기 좋고` : ''}${budget ? ` ${budget} 가능해요.` : '.'}`,
-    `${req.mood.includes('스트레스') ? '스트레스 받는 날' : '오늘'} ${menu}로 해결하기 좋은 ${candidate.place_name}.${blogMenus ? ` 블로그에 ${blogMenus} 언급 있어요.` : ''}${kw ? ` '${kw}' 후기도 있고요.` : ''}`,
-    `${candidate.place_name} — ${req.situation}하기 좋고, ${menu} 중심. 도보 ${candidate.walkMin}분.${rank === 1 ? ' 1순위!' : ''}`,
+      ? `${situations}에 ${req.food[0]?.includes('매운') ? '매운' : ''} ${blogMenus} — ${candidate.place_name}, 블로그 후기에서 확인된 메뉴예요.${time ? ` ${time} OK` : ''}`
+      : `${situations}에 ${connection} — ${candidate.place_name}은 ${shopType}인데 ${mood} 한 끼로 괜찮아요.${time ? ` ${time} 다녀오기 좋고` : ''}${budget ? ` ${budget} 가능해요.` : '.'}`,
+    `${moodLabel} ${menu}로 해결하기 좋은 ${candidate.place_name}.${blogMenus ? ` 블로그에 ${blogMenus} 언급 있어요.` : ''}${kw ? ` '${kw}' 후기도 있고요.` : ''}`,
+    `${candidate.place_name} — ${hasSituation(req, '혼밥') ? '혼밥' : situations}하기 좋고, ${menu} 중심. 도보 ${candidate.walkMin}분.${rank === 1 ? ' 1순위!' : ''}`,
   ]
 
   return templates[(rank - 1) % templates.length]

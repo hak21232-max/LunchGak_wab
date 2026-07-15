@@ -4,6 +4,11 @@ import { estimateWalkMin, parseRadiusMeters, searchRestaurantsForQuiz } from './
 import { computeReputationScore, enrichWithBlogData, type BlogStats } from './naver'
 import { applyExcellentRestaurantBonus } from './publicdata'
 import { buildQuizSearchQueries, resolveFoodVibe } from './quizSearch'
+import {
+  parseStringArray,
+  resolveBudgetLabel,
+  resolveDistanceLabel,
+} from './quizAnswers'
 import { fetchWeather, buildWeatherComment } from './weather'
 import { fallbackGeminiOutput, generateRecommendations } from './gemini'
 import type {
@@ -252,15 +257,19 @@ export function validateRecommendRequest(body: unknown): RecommendRequest {
   const data = body as Record<string, unknown>
   const lat = Number(data.lat)
   const lng = Number(data.lng)
-  const food = Array.isArray(data.food) ? data.food.map(String) : []
+  const food = parseStringArray(data.food)
+  const situation = parseStringArray(data.situation)
+  const mood = parseStringArray(data.mood)
+  const distanceRaw = parseStringArray(data.distance)
+  const budgetRaw = parseStringArray(data.budget)
 
   if (
     !data.meal ||
-    !data.situation ||
-    !data.mood ||
+    situation.length === 0 ||
+    mood.length === 0 ||
     food.length === 0 ||
-    !data.distance ||
-    !data.budget ||
+    distanceRaw.length === 0 ||
+    budgetRaw.length === 0 ||
     Number.isNaN(lat) ||
     Number.isNaN(lng)
   ) {
@@ -269,11 +278,11 @@ export function validateRecommendRequest(body: unknown): RecommendRequest {
 
   return {
     meal: String(data.meal),
-    situation: String(data.situation),
-    mood: String(data.mood),
+    situation,
+    mood,
     food,
-    distance: String(data.distance),
-    budget: String(data.budget),
+    distance: resolveDistanceLabel(distanceRaw),
+    budget: resolveBudgetLabel(budgetRaw),
     lat,
     lng,
     excludePlaceIds: parseExcludePlaceIds(data),
